@@ -90,8 +90,15 @@ final class ViewModel: ObservableObject {
     func selectTask(_ idx: Int, replaceCommand: Bool = true) {
         selectedIndex = idx
         let t = tasks[idx]
-        status = "[\(t.uid)] \(t.text)"
+        status = "[\(t.uid)] \(t.text) · \(countInfo(t.text))"
         if replaceCommand { command = t.uid + " " }
+    }
+
+    private func countInfo(_ s: String) -> String {
+        let words = s.split { $0.isWhitespace || $0.isNewline }.filter { !$0.isEmpty }.count
+        let chars = s.count
+        let bytes = s.lengthOfBytes(using: .utf8)
+        return "\(words)w \(chars)c \(bytes)b"
     }
 
     // Collapse "[UID] very long text..." to a shorter header for the status line
@@ -163,7 +170,7 @@ struct CommandField: NSViewRepresentable {
         tf.backgroundColor = NSColor.windowBackgroundColor
         tf.textColor = NSColor.labelColor
         tf.placeholderString = placeholder
-        tf.font = NSFont.systemFont(ofSize: 13)
+        tf.font = NSFont.systemFont(ofSize: 15)
         tf.delegate = context.coordinator
 
         if focusOnAppear, !context.coordinator.didFocusOnce {
@@ -174,9 +181,14 @@ struct CommandField: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSTextField, context: Context) {
-        if nsView.stringValue != text { nsView.stringValue = text }
+        if nsView.stringValue != text {
+            nsView.stringValue = text
+            DispatchQueue.main.async {
+                nsView.window?.makeFirstResponder(nsView)
+                nsView.currentEditor()?.selectedRange = NSRange(location: nsView.stringValue.count, length: 0)
+            }
+        }
         nsView.placeholderString = placeholder
-        // Do NOT refocus here; it causes "one letter overwrites" behavior.
     }
 }
 
@@ -189,14 +201,14 @@ struct ContentView: View {
     }
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             // Status line
             HStack {
                 Text(vm.status ?? "\(vm.tasks.count) open")
-                    .font(.callout)
+                    .font(.system(size: 14))
                     .foregroundColor(.gray)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
                 Spacer()
             }
 
@@ -205,15 +217,14 @@ struct ContentView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(vm.tasks.enumerated()), id: \.element.uid) { idx, t in
-                            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                                Text("[\(t.uid)]").font(.system(.callout, design: .monospaced))
-                                Text(t.text).lineLimit(1).truncationMode(.tail)
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text("[\(t.uid)]").font(.system(size: 15, design: .monospaced))
+                                Text(t.text).font(.system(size: 15)).lineLimit(1).truncationMode(.tail)
                                 Spacer(minLength: 12)
-                                Text("· \(vm.ageLabel(t))").foregroundColor(.gray).font(
-                                    .callout)
+                                Text("· \(vm.ageLabel(t))").foregroundColor(.gray).font(.system(size: 13))
                             }
                             .padding(.horizontal, 8)
-                            .padding(.vertical, 6)
+                            .padding(.vertical, 4)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(
                                 vm.selectedIndex == idx ? Color.accentColor.opacity(0.12) : .clear
@@ -244,7 +255,7 @@ struct ContentView: View {
                 onPageUp: { vm.moveSelection(by: -pageStep) },
                 onPageDown: { vm.moveSelection(by: +pageStep) }
             )
-            .frame(height: 26)
+            .frame(height: 30)
             .padding(.top, 8)
         }
         .padding(20)

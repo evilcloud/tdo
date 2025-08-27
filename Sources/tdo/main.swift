@@ -26,9 +26,9 @@ func splitGlobalFlags(_ args: [String]) -> (paths: (String?, String?), rest: [St
     return ((filePath, archivePath), out)
 }
 
-func runShell(env: Env) -> Int32 {
-    let engine = Engine()
-    let renderer = Renderer(
+// Shared renderer configuration for both CLI commands and interactive shell
+func makeRenderer() -> Renderer {
+    Renderer(
         config: RenderConfig(
             colorize: nil,  // auto if TTY
             dimNotes: true,
@@ -39,6 +39,11 @@ func runShell(env: Env) -> Int32 {
             listTextWidth: 48  // align age column (set nil to disable)
         )
     )
+}
+
+func runShell(env: Env) -> Int32 {
+    let engine = Engine()
+    let renderer = makeRenderer()
 
     while true {
         fputs("> ", stdout)
@@ -98,7 +103,7 @@ func runEntry() -> Int32 {
     do {
         let cmd = try Parser.parse(argv: rest)
         let engine = Engine()
-        let renderer = Renderer()
+        let renderer = makeRenderer()
 
         switch cmd {
         case .shell:
@@ -119,7 +124,7 @@ func runEntry() -> Int32 {
             return code.rawValue
         }
     } catch {
-        let renderer = Renderer()
+        let renderer = makeRenderer()
         renderer.printBlock(["error: \(error)"])
         return ExitCode.userError.rawValue
     }
