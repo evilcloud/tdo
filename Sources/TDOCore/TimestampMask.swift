@@ -2,8 +2,9 @@ import Foundation
 
 /// Rewrites any ISO-8601 timestamps found in a line into variable-resolution labels.
 /// Pattern handled: 2000-01-01T00:00:00Z or with timezone offset like +02:00
-struct TimestampMasker {
-    let age: AgeLabeler
+public struct TimestampMasker {
+    public let age: AgeLabeler
+    public init(age: AgeLabeler) { self.age = age }
 
     // yyyy-MM-dd'T'HH:mm:ss(Z or ±HH:MM)
     private static let regex: NSRegularExpression = {
@@ -11,7 +12,7 @@ struct TimestampMasker {
         return try! NSRegularExpression(pattern: p, options: [])
     }()
 
-    func replace(in line: String, now: Date = Date(), calendar: Calendar = .current) -> String {
+    public func replace(in line: String, now: Date = Date(), calendar: Calendar = .current) -> String {
         let ns = line as NSString
         let matches = Self.regex.matches(
             in: line, options: [], range: NSRange(location: 0, length: ns.length))

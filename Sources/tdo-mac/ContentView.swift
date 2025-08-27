@@ -2,84 +2,21 @@ import AppKit
 import SwiftUI
 import TDOCore
 
-// Variable-resolution time (no exact timestamps)
-private struct AgeLabeler {
-    private static let iso: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime]
-        return f
-    }()
-    private static let mmmDay: DateFormatter = {
-        let df = DateFormatter()
-        df.locale = Locale(identifier: "en_US_POSIX")
-        df.setLocalizedDateFormatFromTemplate("MMM d")
-        return df
-    }()
-    func label(_ createdAt: String, now: Date = Date(), calendar: Calendar = .current) -> String {
-        guard let created = Self.iso.date(from: createdAt) else { return "" }
-        let seconds = now.timeIntervalSince(created)
-        if seconds < 60 { return "< 1m" }
-
-        let minutes = Int(seconds / 60)
-        if minutes <= 15 { return "\(minutes)m" }
-        if minutes < 30 { return "< 30m" }
-        if minutes < 60 { return "< 1h" }
-
-        let hours = Int(seconds / 3600)
-        if hours <= 6 { return "\(hours)h" }
-
-        if calendar.isDate(created, inSameDayAs: now) {
-            let h = calendar.component(.hour, from: created)
-            if (5...11).contains(h) { return "Morning" }
-            if (12...13).contains(h) { return "Noon" }
-            return "Evening"
-        }
-
-        let d0 = calendar.startOfDay(for: now)
-        let d1 = calendar.startOfDay(for: created)
-        let days = calendar.dateComponents([.day], from: d1, to: d0).day ?? 0
-        if days == 1 { return "Yesterday" }
-        if days < 7 { return "\(days)d ago" }
-        return Self.mmmDay.string(from: created)
-    }
-}
-
-// Regex masker to turn any ISO timestamp in a string into an age label.
-private struct TimestampMasker {
-    let age = AgeLabeler()
-    private static let regex: NSRegularExpression = {
-        let p = #"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+\-]\d{2}:\d{2})"#
-        return try! NSRegularExpression(pattern: p, options: [])
-    }()
-    func mask(_ s: String) -> String {
-        let ns = s as NSString
-        let matches = Self.regex.matches(
-            in: s, options: [], range: NSRange(location: 0, length: ns.length))
-        guard !matches.isEmpty else { return s }
-        var out = s
-        for m in matches.reversed() {
-            let ts = ns.substring(with: m.range)
-            let label = age.label(ts)
-            if let r = Range(m.range, in: out) { out.replaceSubrange(r, with: label) }
-        }
-        return out
-    }
-}
-
 final class ViewModel: ObservableObject {
     @Published var tasks: [OpenTask] = []
     @Published var command: String = ""
-    @Published var status: String? = nil  // one-line feedback
+    @Published var status: String? = nil  // last action / feedback
     @Published var selectedIndex: Int? = nil  // keyboard selection
 
     private let engine: Engine
     private let env: Env
     private let age = AgeLabeler()
-    private let mask = TimestampMasker()
+    private let mask: TimestampMasker
 
     init(engine: Engine, env: Env) {
         self.engine = engine
         self.env = env
+        self.mask = TimestampMasker(age: age)
         refresh()
     }
 
@@ -90,7 +27,6 @@ final class ViewModel: ObservableObject {
             if selectedIndex.map({ $0 >= tasks.count }) ?? false {
                 selectedIndex = tasks.isEmpty ? nil : 0
             }
-            if status?.hasPrefix("error:") == true { /* keep error */  } else { status = nil }
         } catch {
             status = "error: \(error)"
         }
@@ -98,10 +34,11 @@ final class ViewModel: ObservableObject {
 
     func submit() {
         let line = command.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !line.isEmpty else {
-            refresh()
+        if line.isEmpty, let idx = selectedIndex, idx < tasks.count {
+            command = tasks[idx].uid + " "
             return
         }
+        guard !line.isEmpty else { return }
 
         let argv = line.split(separator: " ").map(String.init)
         let cmd: Command
@@ -112,7 +49,7 @@ final class ViewModel: ObservableObject {
             let (lines, _, _) = engine.execute(cmd, env: env)
             var collapsed = lines
             if let first = lines.first { collapsed[0] = collapseHeader(first) }
-            status = collapsed.map { mask.mask($0) }.joined(separator: "  ·  ")
+            status = collapsed.map { mask.replace(in: $0) }.joined(separator: "  ·  ")
             if let idx = tasks.firstIndex(where: { $0.uid.hasPrefix(pfx.uppercased()) }) {
                 selectedIndex = idx
             }
@@ -137,7 +74,7 @@ final class ViewModel: ObservableObject {
         return false
     }
 
-    func ageLabel(_ t: OpenTask) -> String { age.label(t.createdAt) }
+    func ageLabel(_ t: OpenTask) -> String { age.label(createdAt: t.createdAt) }
 
     // Keyboard selection helpers
     func moveSelection(by delta: Int) {
@@ -147,9 +84,14 @@ final class ViewModel: ObservableObject {
         }
         let current = selectedIndex ?? 0
         let next = max(0, min(tasks.count - 1, current + delta))
-        selectedIndex = next
-        let t = tasks[next]
+        selectTask(next, replaceCommand: false)
+    }
+
+    func selectTask(_ idx: Int, replaceCommand: Bool = true) {
+        selectedIndex = idx
+        let t = tasks[idx]
         status = "[\(t.uid)] \(t.text)"
+        if replaceCommand { command = t.uid + " " }
     }
 
     // Collapse "[UID] very long text..." to a shorter header for the status line
@@ -213,9 +155,13 @@ struct CommandField: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSTextField {
         let tf = NSTextField(string: text)
-        tf.isBordered = true
-        tf.bezelStyle = .roundedBezel
-        tf.focusRingType = .default
+        tf.isBordered = false
+        tf.focusRingType = .none
+        tf.drawsBackground = true
+        tf.wantsLayer = true
+        tf.layer?.cornerRadius = 6
+        tf.backgroundColor = NSColor.windowBackgroundColor
+        tf.textColor = NSColor.labelColor
         tf.placeholderString = placeholder
         tf.font = NSFont.systemFont(ofSize: 13)
         tf.delegate = context.coordinator
@@ -244,18 +190,14 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            // Header + status (single line)
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("tdo").font(.system(size: 20, weight: .semibold, design: .rounded))
-                    Spacer()
-                    Text("\(vm.tasks.count) open").font(.callout).foregroundStyle(.secondary)
-                }
-                if let s = vm.status {
-                    Text(s).font(.callout).foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
+            // Status line
+            HStack {
+                Text(vm.status ?? "\(vm.tasks.count) open")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer()
             }
 
             // LIST (simple rows, no separators, soft highlight for selection)
@@ -277,7 +219,7 @@ struct ContentView: View {
                                 vm.selectedIndex == idx ? Color.accentColor.opacity(0.12) : .clear
                             )
                             .contentShape(Rectangle())
-                            .onTapGesture { vm.selectedIndex = idx }
+                            .onTapGesture { vm.selectTask(idx) }
                             .id(t.uid)
                         }
                     }
@@ -305,7 +247,9 @@ struct ContentView: View {
             .frame(height: 26)
             .padding(.top, 8)
         }
-        .padding(14)
+        .padding(20)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .preferredColorScheme(.dark)
         // Optional hotkeys from App.swift (if you kept those commands)
         .onReceive(NotificationCenter.default.publisher(for: .tdoUndo)) { _ in vm.undoLast() }
         .onReceive(NotificationCenter.default.publisher(for: .tdoRefresh)) { _ in vm.refresh() }
