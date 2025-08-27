@@ -15,8 +15,7 @@ final class PinObserver: ObservableObject {
 
     private var observers: [NSObjectProtocol] = []
 
-    override init() {
-        super.init()
+    init() {
         let center = DistributedNotificationCenter.default()
         observers.append(
             center.addObserver(forName: .tdoPin, object: nil, queue: .main) { [weak self] _ in
