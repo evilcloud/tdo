@@ -42,6 +42,9 @@ public struct Engine {
 
             case .act(let ids, let action, let status):
                 return try perform(ids: ids, action: action, status: status, env: env)
+
+            case .pin, .unpin:
+                return (["note: pin/unpin handled by macOS app"], false, .ok)
             }
         } catch let e as FileIOError {
             return (["error: \(e)"], false, .ioError)

@@ -6,6 +6,8 @@ extension Notification.Name {
     static let tdoUndo = Notification.Name("tdoUndo")
     static let tdoRefresh = Notification.Name("tdoRefresh")
     static let tdoFocusCommand = Notification.Name("tdoFocusCommand")
+    static let tdoPin = Notification.Name("tdoPin")
+    static let tdoUnpin = Notification.Name("tdoUnpin")
 }
 
 @main
@@ -19,6 +21,15 @@ struct TDOMacApp: App {
             if let image = NSImage(systemSymbolName: "checkmark.circle", accessibilityDescription: nil) {
                 NSApp.applicationIconImage = image
             }
+        }
+        let center = DistributedNotificationCenter.default()
+        center.addObserver(forName: .tdoPin, object: nil, queue: .main) { _ in
+            self.isPinned = true
+            self.applyPin()
+        }
+        center.addObserver(forName: .tdoUnpin, object: nil, queue: .main) { _ in
+            self.isPinned = false
+            self.applyPin()
         }
     }
 
