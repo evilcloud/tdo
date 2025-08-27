@@ -98,12 +98,13 @@ public struct Engine {
     }
 
     private func detail(open t: OpenTask) -> [String] {
-        ["[\(t.uid)] \(t.text)", "created: \(t.createdAt)"]
+        ["[\(t.uid)] \(t.text) · \(countInfo(t.text))", "created: \(t.createdAt)"]
     }
 
     private func detail(archived a: ArchivedTask) -> [String] {
         [
-            "[\(a.uid)] \(a.text)", "created: \(a.createdAt)", "completed: \(a.completedAt)",
+            "[\(a.uid)] \(a.text) · \(countInfo(a.text))", "created: \(a.createdAt)",
+            "completed: \(a.completedAt)",
             "status: \(a.status)",
         ]
     }
@@ -128,7 +129,7 @@ public struct Engine {
         let task = OpenTask(uid: uid, createdAt: created, text: trimmed)
         open.append(task)
         try FileIO.writeOpen(env.activeURL, tasks: open)
-        return (["added: [\(uid)] \(trimmed)"], true, .ok)
+        return (["added: [\(uid)] \(trimmed) · \(countInfo(trimmed))"], true, .ok)
     }
 
     private func listOpen(env: Env) throws -> [String] {
@@ -270,6 +271,13 @@ public struct Engine {
         archAll.append(contentsOf: toArchive)
         try FileIO.writeArchive(env.archiveURL, tasks: archAll)
         return (output, true, .ok)
+    }
+
+    private func countInfo(_ s: String) -> String {
+        let words = s.split { $0.isWhitespace || $0.isNewline }.filter { !$0.isEmpty }.count
+        let chars = s.count
+        let bytes = s.lengthOfBytes(using: .utf8)
+        return "\(words)w \(chars)c \(bytes)b"
     }
 
 }

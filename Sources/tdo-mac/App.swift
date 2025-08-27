@@ -24,7 +24,7 @@ struct TDOMacApp: App {
                     minWidth: 720, idealWidth: 720, maxWidth: .infinity,
                     minHeight: 460, maxHeight: .infinity)
         }
-        .windowStyle(.titleBar)
+        .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(replacing: .appTermination) {
                 Button("Quit tdo") { NSApp.terminate(nil) }
