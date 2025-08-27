@@ -260,24 +260,18 @@ struct ContentView: View {
 
             // COMMAND FIELD (captures ⏎, ↑/↓, PgUp/PgDn)
             HStack(spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "paperclip")
-                        .foregroundColor(.secondary)
-                    CommandField(
-                        text: $vm.command,
-                        placeholder:
-                            "Type a command or just text…  (e.g.  do buy coffee   |   ABC done   |   undo)",
-                        focusOnAppear: true,
-                        onSubmit: { vm.submit() },
-                        onUp: { vm.moveSelection(by: -1) },
-                        onDown: { vm.moveSelection(by: +1) },
-                        onPageUp: { vm.moveSelection(by: -pageStep) },
-                        onPageDown: { vm.moveSelection(by: +pageStep) }
-                    )
-                    .frame(height: 28)
-                    Image(systemName: "mic")
-                        .foregroundColor(.secondary)
-                }
+                CommandField(
+                    text: $vm.command,
+                    placeholder:
+                        "Type a command or just text…  (e.g.  do buy coffee   |   ABC done   |   undo)",
+                    focusOnAppear: true,
+                    onSubmit: { vm.submit() },
+                    onUp: { vm.moveSelection(by: -1) },
+                    onDown: { vm.moveSelection(by: +1) },
+                    onPageUp: { vm.moveSelection(by: -pageStep) },
+                    onPageDown: { vm.moveSelection(by: +pageStep) }
+                )
+                .frame(height: 28)
                 .padding(.vertical, 6)
                 .padding(.horizontal, 12)
                 .background(Color(NSColor.controlBackgroundColor))
@@ -285,8 +279,13 @@ struct ContentView: View {
 
                 Button("Ask") { vm.submit() }
                     .buttonStyle(.bordered)
-                Button("Code") { vm.submit() }
-                    .buttonStyle(.borderedProminent)
+                if #available(macOS 12.0, *) {
+                    Button("Code") { vm.submit() }
+                        .buttonStyle(.borderedProminent)
+                } else {
+                    Button("Code") { vm.submit() }
+                        .buttonStyle(.bordered)
+                }
             }
             .padding(.top, 8)
         }
