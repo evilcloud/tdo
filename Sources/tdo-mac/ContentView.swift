@@ -56,6 +56,25 @@ final class ViewModel: ObservableObject {
             return
         }
 
+#if os(macOS)
+        if case .pin = cmd {
+            DistributedNotificationCenter.default().post(name: .tdoPin, object: nil)
+            status = "pinned window"
+            command = ""
+            return
+        }
+        if case .unpin = cmd {
+            DistributedNotificationCenter.default().post(name: .tdoUnpin, object: nil)
+            status = "unpinned window"
+            command = ""
+            return
+        }
+        if case .exit = cmd {
+            NSApp.terminate(nil)
+            return
+        }
+#endif
+
         let (out, mutated, _) = engine.execute(cmd, env: env)
         status = out.first
         if mutated || isListy(cmd) { refresh() }
@@ -163,11 +182,10 @@ struct CommandField: NSViewRepresentable {
     func makeNSView(context: Context) -> NSTextField {
         let tf = NSTextField(string: text)
         tf.isBordered = false
+        tf.isBezeled = false
         tf.focusRingType = .none
-        tf.drawsBackground = true
-        tf.wantsLayer = true
-        tf.layer?.cornerRadius = 6
-        tf.backgroundColor = NSColor.windowBackgroundColor
+        tf.drawsBackground = false
+        tf.backgroundColor = .clear
         tf.textColor = NSColor.labelColor
         tf.placeholderString = placeholder
         tf.font = NSFont.systemFont(ofSize: 15)
@@ -195,6 +213,7 @@ struct CommandField: NSViewRepresentable {
 struct ContentView: View {
     @StateObject private var vm: ViewModel
     @State private var pageStep: Int = 10
+    @EnvironmentObject private var pinObserver: PinObserver
 
     init(engine: Engine, env: Env) {
         _vm = StateObject(wrappedValue: ViewModel(engine: engine, env: env))
@@ -206,7 +225,6 @@ struct ContentView: View {
             HStack {
                 Text(vm.status ?? "\(vm.tasks.count) open")
                     .font(.system(size: 14))
-                    .foregroundColor(.gray)
                     .lineLimit(3)
                     .multilineTextAlignment(.leading)
                 Spacer()
@@ -244,23 +262,51 @@ struct ContentView: View {
             }
 
             // COMMAND FIELD (captures ⏎, ↑/↓, PgUp/PgDn)
-            CommandField(
-                text: $vm.command,
-                placeholder:
-                    "Type a command or just text…  (e.g.  do buy coffee   |   ABC done   |   undo)",
-                focusOnAppear: true,
-                onSubmit: { vm.submit() },
-                onUp: { vm.moveSelection(by: -1) },
-                onDown: { vm.moveSelection(by: +1) },
-                onPageUp: { vm.moveSelection(by: -pageStep) },
-                onPageDown: { vm.moveSelection(by: +pageStep) }
-            )
-            .frame(height: 30)
+            HStack(spacing: 8) {
+                CommandField(
+                    text: $vm.command,
+                    placeholder:
+                        "Type a command or just text…  (e.g.  do buy coffee   |   ABC done   |   undo)",
+                    focusOnAppear: true,
+                    onSubmit: { vm.submit() },
+                    onUp: { vm.moveSelection(by: -1) },
+                    onDown: { vm.moveSelection(by: +1) },
+                    onPageUp: { vm.moveSelection(by: -pageStep) },
+                    onPageDown: { vm.moveSelection(by: +pageStep) }
+                )
+                .frame(height: 28)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 12)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(20)
+            }
             .padding(.top, 8)
         }
         .padding(20)
         .background(Color(NSColor.windowBackgroundColor))
         .preferredColorScheme(.dark)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("tdo")
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: {
+                    pinObserver.isPinned.toggle()
+                    pinObserver.applyPin()
+                }) {
+                    Image(systemName: pinObserver.isPinned ? "pin.fill" : "pin")
+                        .rotationEffect(.degrees(45))
+                }
+            }
+        }
+        .onAppear {
+            // Blend title bar with the task list area
+            if let window = NSApp.windows.first {
+                window.titleVisibility = .hidden
+                window.titlebarAppearsTransparent = true
+                window.backgroundColor = NSColor.windowBackgroundColor
+            }
+        }
         // Optional hotkeys from App.swift (if you kept those commands)
         .onReceive(NotificationCenter.default.publisher(for: .tdoUndo)) { _ in vm.undoLast() }
         .onReceive(NotificationCenter.default.publisher(for: .tdoRefresh)) { _ in vm.refresh() }

@@ -11,6 +11,9 @@ public enum Command {
     case undo
     case show(String)  // NEW
     case act([String], Action, String?)
+    case pin
+    case unpin
+    case exit
 }
 
 enum ParseError: Error, CustomStringConvertible {
@@ -36,6 +39,9 @@ public struct Parser {
         if first == "list" { return .list }
         if first == "find" { return .find(argv.dropFirst().joined(separator: " ").nilIfEmpty()) }
         if first == "foo" { return .foo(argv.dropFirst().joined(separator: " ").nilIfEmpty()) }
+        if first == "pin" { return .pin }
+        if first == "unpin" { return .unpin }
+        if first == "exit" { return .exit }
 
         // action-first sugar
         if first == "done" || first == "remove" {
