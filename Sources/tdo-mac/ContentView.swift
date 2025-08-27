@@ -182,7 +182,8 @@ struct CommandField: NSViewRepresentable {
         tf.drawsBackground = true
         tf.wantsLayer = true
         tf.layer?.cornerRadius = 6
-        tf.backgroundColor = NSColor.windowBackgroundColor
+        // Slightly differentiate command field from the rest of the window
+        tf.backgroundColor = NSColor.controlBackgroundColor
         tf.textColor = NSColor.labelColor
         tf.placeholderString = placeholder
         tf.font = NSFont.systemFont(ofSize: 15)
@@ -218,6 +219,11 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 8) {
+            // Title centered at top
+            Text("tdo")
+                .font(.system(size: 16, weight: .semibold))
+                .frame(maxWidth: .infinity, alignment: .center)
+
             // Status line
             HStack {
                 Text(vm.status ?? "\(vm.tasks.count) open")
@@ -284,7 +290,15 @@ struct ContentView: View {
                     pinObserver.applyPin()
                 }) {
                     Image(systemName: pinObserver.isPinned ? "pin.fill" : "pin")
+                        .rotationEffect(.degrees(-45))
                 }
+            }
+        }
+        .onAppear {
+            // Blend title bar with the task list area
+            if let window = NSApp.windows.first {
+                window.titlebarAppearsTransparent = true
+                window.backgroundColor = NSColor.windowBackgroundColor
             }
         }
         // Optional hotkeys from App.swift (if you kept those commands)
