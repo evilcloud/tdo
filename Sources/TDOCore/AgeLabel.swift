@@ -1,6 +1,8 @@
 import Foundation
 
-struct AgeLabeler {
+public struct AgeLabeler {
+    public init() {}
+
     private static let iso: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
@@ -14,7 +16,7 @@ struct AgeLabeler {
         return df
     }()
 
-    func label(createdAt: String, now: Date = Date(), calendar: Calendar = .current) -> String {
+    public func label(createdAt: String, now: Date = Date(), calendar: Calendar = .current) -> String {
         guard let created = AgeLabeler.iso.date(from: createdAt) else { return "" }
         let seconds = now.timeIntervalSince(created)
         if seconds < 60 { return "< 1m" }

@@ -14,10 +14,10 @@ let package = Package(
     .target(name: "TDOCore", path: "Sources/TDOCore"),
     .target(name: "TDOTerminal", dependencies: ["TDOCore"], path: "Sources/TDOTerminal"),
     .executableTarget(name: "tdo", dependencies: ["TDOCore", "TDOTerminal"], path: "Sources/tdo"),
-    .executableTarget(
-      name: "tdo-mac",
-      dependencies: ["TDOCore"],  // thin GUI uses core only
-      path: "Sources/tdo-mac"
-    ),
+      .executableTarget(
+        name: "tdo-mac",
+        dependencies: ["TDOCore"],
+        path: "Sources/tdo-mac"
+      ),
   ]
 )
