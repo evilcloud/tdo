@@ -219,11 +219,6 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            // Title centered at top
-            Text("tdo")
-                .font(.system(size: 16, weight: .semibold))
-                .frame(maxWidth: .infinity, alignment: .center)
-
             // Status line
             HStack {
                 Text(vm.status ?? "\(vm.tasks.count) open")
@@ -277,7 +272,7 @@ struct ContentView: View {
                 onPageUp: { vm.moveSelection(by: -pageStep) },
                 onPageDown: { vm.moveSelection(by: +pageStep) }
             )
-            .frame(height: 30)
+            .frame(height: 40)
             .padding(.top, 8)
         }
         .padding(20)
@@ -290,7 +285,7 @@ struct ContentView: View {
                     pinObserver.applyPin()
                 }) {
                     Image(systemName: pinObserver.isPinned ? "pin.fill" : "pin")
-                        .rotationEffect(.degrees(-45))
+                        .rotationEffect(.degrees(45))
                 }
             }
         }
