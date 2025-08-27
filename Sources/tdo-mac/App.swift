@@ -10,9 +10,45 @@ extension Notification.Name {
     static let tdoUnpin = Notification.Name("tdoUnpin")
 }
 
+final class PinObserver: ObservableObject {
+    @Published var isPinned = false
+
+    private var observers: [NSObjectProtocol] = []
+
+    override init() {
+        super.init()
+        let center = DistributedNotificationCenter.default()
+        observers.append(
+            center.addObserver(forName: .tdoPin, object: nil, queue: .main) { [weak self] _ in
+                self?.isPinned = true
+                self?.applyPin()
+            }
+        )
+        observers.append(
+            center.addObserver(forName: .tdoUnpin, object: nil, queue: .main) { [weak self] _ in
+                self?.isPinned = false
+                self?.applyPin()
+            }
+        )
+    }
+
+    deinit {
+        let center = DistributedNotificationCenter.default()
+        for observer in observers {
+            center.removeObserver(observer)
+        }
+    }
+
+    func applyPin() {
+        for window in NSApp.windows {
+            window.level = isPinned ? .floating : .normal
+        }
+    }
+}
+
 @main
 struct TDOMacApp: App {
-    @State private var isPinned = false
+    @StateObject private var pinObserver = PinObserver()
 
     init() {
         DispatchQueue.main.async {
@@ -21,21 +57,6 @@ struct TDOMacApp: App {
             if let image = NSImage(systemSymbolName: "checkmark.circle", accessibilityDescription: nil) {
                 NSApp.applicationIconImage = image
             }
-        }
-        let center = DistributedNotificationCenter.default()
-        center.addObserver(forName: .tdoPin, object: nil, queue: .main) { _ in
-            self.isPinned = true
-            self.applyPin()
-        }
-        center.addObserver(forName: .tdoUnpin, object: nil, queue: .main) { _ in
-            self.isPinned = false
-            self.applyPin()
-        }
-    }
-
-    private func applyPin() {
-        for window in NSApp.windows {
-            window.level = isPinned ? .floating : .normal
         }
     }
 
@@ -63,9 +84,9 @@ struct TDOMacApp: App {
                     NotificationCenter.default.post(name: .tdoFocusCommand, object: nil)
                 }.keyboardShortcut("l", modifiers: [.command])
                 Divider()
-                Button(isPinned ? "Unpin Window" : "Pin Window") {
-                    isPinned.toggle()
-                    applyPin()
+                Button(pinObserver.isPinned ? "Unpin Window" : "Pin Window") {
+                    pinObserver.isPinned.toggle()
+                    pinObserver.applyPin()
                 }.keyboardShortcut("p", modifiers: [.command])
             }
         }
