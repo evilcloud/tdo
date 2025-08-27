@@ -10,10 +10,21 @@ extension Notification.Name {
 
 @main
 struct TDOMacApp: App {
+    @State private var isPinned = false
+
     init() {
         DispatchQueue.main.async {
             NSApp.setActivationPolicy(.regular)
             NSApp.activate(ignoringOtherApps: true)
+            if let image = NSImage(systemSymbolName: "checkmark.circle", accessibilityDescription: nil) {
+                NSApp.applicationIconImage = image
+            }
+        }
+    }
+
+    private func applyPin() {
+        for window in NSApp.windows {
+            window.level = isPinned ? .floating : .normal
         }
     }
 
@@ -40,6 +51,11 @@ struct TDOMacApp: App {
                 Button("Focus Command") {
                     NotificationCenter.default.post(name: .tdoFocusCommand, object: nil)
                 }.keyboardShortcut("l", modifiers: [.command])
+                Divider()
+                Button(isPinned ? "Unpin Window" : "Pin Window") {
+                    isPinned.toggle()
+                    applyPin()
+                }.keyboardShortcut("p", modifiers: [.command])
             }
         }
     }
