@@ -5,7 +5,7 @@ import TDOCore
 final class ViewModel: ObservableObject {
     @Published var tasks: [OpenTask] = []
     @Published var command: String = ""
-    @Published var status: String? = nil  // one-line feedback
+    @Published var status: String? = nil  // last action / feedback
     @Published var selectedIndex: Int? = nil  // keyboard selection
 
     private let engine: Engine
@@ -27,7 +27,6 @@ final class ViewModel: ObservableObject {
             if selectedIndex.map({ $0 >= tasks.count }) ?? false {
                 selectedIndex = tasks.isEmpty ? nil : 0
             }
-            if status?.hasPrefix("error:") == true { /* keep error */  } else { status = nil }
         } catch {
             status = "error: \(error)"
         }
@@ -35,10 +34,11 @@ final class ViewModel: ObservableObject {
 
     func submit() {
         let line = command.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !line.isEmpty else {
-            refresh()
+        if line.isEmpty, let idx = selectedIndex, idx < tasks.count {
+            command = tasks[idx].uid + " "
             return
         }
+        guard !line.isEmpty else { return }
 
         let argv = line.split(separator: " ").map(String.init)
         let cmd: Command
@@ -84,9 +84,14 @@ final class ViewModel: ObservableObject {
         }
         let current = selectedIndex ?? 0
         let next = max(0, min(tasks.count - 1, current + delta))
-        selectedIndex = next
-        let t = tasks[next]
+        selectTask(next, replaceCommand: false)
+    }
+
+    func selectTask(_ idx: Int, replaceCommand: Bool = true) {
+        selectedIndex = idx
+        let t = tasks[idx]
         status = "[\(t.uid)] \(t.text)"
+        if replaceCommand { command = t.uid + " " }
     }
 
     // Collapse "[UID] very long text..." to a shorter header for the status line
@@ -150,9 +155,13 @@ struct CommandField: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSTextField {
         let tf = NSTextField(string: text)
-        tf.isBordered = true
-        tf.bezelStyle = .roundedBezel
-        tf.focusRingType = .default
+        tf.isBordered = false
+        tf.focusRingType = .none
+        tf.drawsBackground = true
+        tf.wantsLayer = true
+        tf.layer?.cornerRadius = 6
+        tf.backgroundColor = NSColor.windowBackgroundColor
+        tf.textColor = NSColor.labelColor
         tf.placeholderString = placeholder
         tf.font = NSFont.systemFont(ofSize: 13)
         tf.delegate = context.coordinator
@@ -181,18 +190,14 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            // Header + status (single line)
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("tdo").font(.system(size: 20, weight: .semibold, design: .rounded))
-                    Spacer()
-                    Text("\(vm.tasks.count) open").font(.callout).foregroundStyle(.secondary)
-                }
-                if let s = vm.status {
-                    Text(s).font(.callout).foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
+            // Status line
+            HStack {
+                Text(vm.status ?? "\(vm.tasks.count) open")
+                    .font(.callout)
+                    .foregroundColor(.gray)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer()
             }
 
             // LIST (simple rows, no separators, soft highlight for selection)
@@ -204,7 +209,7 @@ struct ContentView: View {
                                 Text("[\(t.uid)]").font(.system(.callout, design: .monospaced))
                                 Text(t.text).lineLimit(1).truncationMode(.tail)
                                 Spacer(minLength: 12)
-                                Text("· \(vm.ageLabel(t))").foregroundStyle(.secondary).font(
+                                Text("· \(vm.ageLabel(t))").foregroundColor(.gray).font(
                                     .callout)
                             }
                             .padding(.horizontal, 8)
@@ -214,7 +219,7 @@ struct ContentView: View {
                                 vm.selectedIndex == idx ? Color.accentColor.opacity(0.12) : .clear
                             )
                             .contentShape(Rectangle())
-                            .onTapGesture { vm.selectedIndex = idx }
+                            .onTapGesture { vm.selectTask(idx) }
                             .id(t.uid)
                         }
                     }
@@ -242,7 +247,9 @@ struct ContentView: View {
             .frame(height: 26)
             .padding(.top, 8)
         }
-        .padding(14)
+        .padding(20)
+        .background(Color(NSColor.windowBackgroundColor))
+        .preferredColorScheme(.dark)
         // Optional hotkeys from App.swift (if you kept those commands)
         .onReceive(NotificationCenter.default.publisher(for: .tdoUndo)) { _ in vm.undoLast() }
         .onReceive(NotificationCenter.default.publisher(for: .tdoRefresh)) { _ in vm.refresh() }
