@@ -178,12 +178,10 @@ struct CommandField: NSViewRepresentable {
     func makeNSView(context: Context) -> NSTextField {
         let tf = NSTextField(string: text)
         tf.isBordered = false
+        tf.isBezeled = false
         tf.focusRingType = .none
-        tf.drawsBackground = true
-        tf.wantsLayer = true
-        tf.layer?.cornerRadius = 6
-        // Slightly differentiate command field from the rest of the window
-        tf.backgroundColor = NSColor.controlBackgroundColor
+        tf.drawsBackground = false
+        tf.backgroundColor = .clear
         tf.textColor = NSColor.labelColor
         tf.placeholderString = placeholder
         tf.font = NSFont.systemFont(ofSize: 15)
@@ -261,18 +259,35 @@ struct ContentView: View {
             }
 
             // COMMAND FIELD (captures ⏎, ↑/↓, PgUp/PgDn)
-            CommandField(
-                text: $vm.command,
-                placeholder:
-                    "Type a command or just text…  (e.g.  do buy coffee   |   ABC done   |   undo)",
-                focusOnAppear: true,
-                onSubmit: { vm.submit() },
-                onUp: { vm.moveSelection(by: -1) },
-                onDown: { vm.moveSelection(by: +1) },
-                onPageUp: { vm.moveSelection(by: -pageStep) },
-                onPageDown: { vm.moveSelection(by: +pageStep) }
-            )
-            .frame(height: 40)
+            HStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "paperclip")
+                        .foregroundColor(.secondary)
+                    CommandField(
+                        text: $vm.command,
+                        placeholder:
+                            "Type a command or just text…  (e.g.  do buy coffee   |   ABC done   |   undo)",
+                        focusOnAppear: true,
+                        onSubmit: { vm.submit() },
+                        onUp: { vm.moveSelection(by: -1) },
+                        onDown: { vm.moveSelection(by: +1) },
+                        onPageUp: { vm.moveSelection(by: -pageStep) },
+                        onPageDown: { vm.moveSelection(by: +pageStep) }
+                    )
+                    .frame(height: 28)
+                    Image(systemName: "mic")
+                        .foregroundColor(.secondary)
+                }
+                .padding(.vertical, 6)
+                .padding(.horizontal, 12)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(20)
+
+                Button("Ask") { vm.submit() }
+                    .buttonStyle(.bordered)
+                Button("Code") { vm.submit() }
+                    .buttonStyle(.borderedProminent)
+            }
             .padding(.top, 8)
         }
         .padding(20)
