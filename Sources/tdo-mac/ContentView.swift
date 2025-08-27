@@ -194,7 +194,7 @@ struct ContentView: View {
             HStack {
                 Text(vm.status ?? "\(vm.tasks.count) open")
                     .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.gray)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer()
@@ -209,7 +209,7 @@ struct ContentView: View {
                                 Text("[\(t.uid)]").font(.system(.callout, design: .monospaced))
                                 Text(t.text).lineLimit(1).truncationMode(.tail)
                                 Spacer(minLength: 12)
-                                Text("· \(vm.ageLabel(t))").foregroundStyle(.secondary).font(
+                                Text("· \(vm.ageLabel(t))").foregroundColor(.gray).font(
                                     .callout)
                             }
                             .padding(.horizontal, 8)
@@ -248,7 +248,7 @@ struct ContentView: View {
             .padding(.top, 8)
         }
         .padding(20)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color(NSColor.windowBackgroundColor))
         .preferredColorScheme(.dark)
         // Optional hotkeys from App.swift (if you kept those commands)
         .onReceive(NotificationCenter.default.publisher(for: .tdoUndo)) { _ in vm.undoLast() }
