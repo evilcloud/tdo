@@ -276,16 +276,6 @@ struct ContentView: View {
                 .padding(.horizontal, 12)
                 .background(Color(NSColor.controlBackgroundColor))
                 .cornerRadius(20)
-
-                Button("Ask") { vm.submit() }
-                    .buttonStyle(.bordered)
-                if #available(macOS 12.0, *) {
-                    Button("Code") { vm.submit() }
-                        .buttonStyle(.borderedProminent)
-                } else {
-                    Button("Code") { vm.submit() }
-                        .buttonStyle(.bordered)
-                }
             }
             .padding(.top, 8)
         }
@@ -293,6 +283,9 @@ struct ContentView: View {
         .background(Color(NSColor.windowBackgroundColor))
         .preferredColorScheme(.dark)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("tdo")
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button(action: {
                     pinObserver.isPinned.toggle()
@@ -306,6 +299,7 @@ struct ContentView: View {
         .onAppear {
             // Blend title bar with the task list area
             if let window = NSApp.windows.first {
+                window.titleVisibility = .hidden
                 window.titlebarAppearsTransparent = true
                 window.backgroundColor = NSColor.windowBackgroundColor
             }
