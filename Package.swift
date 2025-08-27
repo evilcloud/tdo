@@ -3,6 +3,9 @@ import PackageDescription
 
 var package = Package(
     name: "tdo",
+    platforms: [
+        .macOS(.v11)
+    ],
     products: [
         .library(name: "TDOCore", targets: ["TDOCore"]),
         .library(name: "TDOTerminal", targets: ["TDOTerminal"]),
