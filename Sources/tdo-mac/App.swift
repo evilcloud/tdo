@@ -62,11 +62,11 @@ struct TDOMacApp: App {
     var body: some Scene {
         WindowGroup("tdo") {
             ContentView(engine: Engine(), env: try! Env())
+                .environmentObject(pinObserver)
                 .frame(
                     minWidth: 720, idealWidth: 720, maxWidth: .infinity,
                     minHeight: 460, maxHeight: .infinity)
         }
-        .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(replacing: .appTermination) {
                 Button("Quit tdo") { NSApp.terminate(nil) }
@@ -86,7 +86,7 @@ struct TDOMacApp: App {
                 Button(pinObserver.isPinned ? "Unpin Window" : "Pin Window") {
                     pinObserver.isPinned.toggle()
                     pinObserver.applyPin()
-                }.keyboardShortcut("p", modifiers: [.command])
+                }
             }
         }
     }
