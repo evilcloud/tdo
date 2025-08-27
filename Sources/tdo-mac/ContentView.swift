@@ -69,6 +69,10 @@ final class ViewModel: ObservableObject {
             command = ""
             return
         }
+        if case .exit = cmd {
+            NSApp.terminate(nil)
+            return
+        }
 #endif
 
         let (out, mutated, _) = engine.execute(cmd, env: env)
@@ -221,7 +225,6 @@ struct ContentView: View {
             HStack {
                 Text(vm.status ?? "\(vm.tasks.count) open")
                     .font(.system(size: 14))
-                    .foregroundColor(.gray)
                     .lineLimit(3)
                     .multilineTextAlignment(.leading)
                 Spacer()

@@ -13,6 +13,7 @@ public enum Command {
     case act([String], Action, String?)
     case pin
     case unpin
+    case exit
 }
 
 enum ParseError: Error, CustomStringConvertible {
@@ -40,6 +41,7 @@ public struct Parser {
         if first == "foo" { return .foo(argv.dropFirst().joined(separator: " ").nilIfEmpty()) }
         if first == "pin" { return .pin }
         if first == "unpin" { return .unpin }
+        if first == "exit" { return .exit }
 
         // action-first sugar
         if first == "done" || first == "remove" {

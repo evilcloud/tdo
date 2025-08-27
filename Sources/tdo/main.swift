@@ -5,6 +5,7 @@ import TDOTerminal
 extension Notification.Name {
     static let tdoPin = Notification.Name("tdoPin")
     static let tdoUnpin = Notification.Name("tdoUnpin")
+    static let tdoExit = Notification.Name("tdoExit")
 }
 #endif
 
@@ -67,7 +68,12 @@ func runShell(env: Env) -> Int32 {
         }
 
         let lower = trimmed.lowercased()
-        if lower == "exit" || lower == "quit" { break }
+        if lower == "exit" || lower == "quit" {
+#if os(macOS)
+            DistributedNotificationCenter.default().post(name: .tdoExit, object: nil)
+#endif
+            break
+        }
 
         let argv = trimmed.split(separator: " ").map(String.init)
         do {
@@ -86,6 +92,11 @@ func runShell(env: Env) -> Int32 {
             case .unpin:
 #if os(macOS)
                 DistributedNotificationCenter.default().post(name: .tdoUnpin, object: nil)
+#endif
+                break
+            case .exit:
+#if os(macOS)
+                DistributedNotificationCenter.default().post(name: .tdoExit, object: nil)
 #endif
                 break
             default:
@@ -143,6 +154,14 @@ func runEntry() -> Int32 {
             DistributedNotificationCenter.default().post(name: .tdoUnpin, object: nil)
 #else
             renderer.printBlock(["unpin is only available on macOS"])
+#endif
+            return ExitCode.ok.rawValue
+
+        case .exit:
+#if os(macOS)
+            DistributedNotificationCenter.default().post(name: .tdoExit, object: nil)
+#else
+            renderer.printBlock(["exit is only available on macOS"])
 #endif
             return ExitCode.ok.rawValue
 

@@ -45,6 +45,8 @@ public struct Engine {
 
             case .pin, .unpin:
                 return (["note: pin/unpin handled by macOS app"], false, .ok)
+            case .exit:
+                return (["note: exit handled by macOS app"], false, .ok)
             }
         } catch let e as FileIOError {
             return (["error: \(e)"], false, .ioError)

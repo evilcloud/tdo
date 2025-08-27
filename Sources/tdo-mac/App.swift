@@ -8,6 +8,7 @@ extension Notification.Name {
     static let tdoFocusCommand = Notification.Name("tdoFocusCommand")
     static let tdoPin = Notification.Name("tdoPin")
     static let tdoUnpin = Notification.Name("tdoUnpin")
+    static let tdoExit = Notification.Name("tdoExit")
 }
 
 final class PinObserver: ObservableObject {
@@ -27,6 +28,11 @@ final class PinObserver: ObservableObject {
             center.addObserver(forName: .tdoUnpin, object: nil, queue: .main) { [weak self] _ in
                 self?.isPinned = false
                 self?.applyPin()
+            }
+        )
+        observers.append(
+            center.addObserver(forName: .tdoExit, object: nil, queue: .main) { _ in
+                NSApp.terminate(nil)
             }
         )
     }
