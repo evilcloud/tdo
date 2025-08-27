@@ -24,8 +24,13 @@ struct FileIO {
             try content.write(to: tmp, atomically: true, encoding: .utf8)
             // fsync for extra safety
             let fh = try FileHandle(forUpdating: tmp)
-            try fh.synchronize()
-            try fh.close()
+            if #available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *) {
+                try fh.synchronize()
+                try fh.close()
+            } else {
+                fh.synchronizeFile()
+                fh.closeFile()
+            }
             if FileManager.default.fileExists(atPath: url.path) {
                 _ = try FileManager.default.replaceItemAt(url, withItemAt: tmp)
             } else {
