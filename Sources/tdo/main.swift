@@ -1,6 +1,13 @@
 import Foundation
 import TDOCore
 import TDOTerminal
+#if os(macOS)
+extension Notification.Name {
+    static let tdoPin = Notification.Name("tdoPin")
+    static let tdoUnpin = Notification.Name("tdoUnpin")
+    static let tdoExit = Notification.Name("tdoExit")
+}
+#endif
 
 // Parse global flags: --file, --archive (best-effort; stripped from argv)
 func splitGlobalFlags(_ args: [String]) -> (paths: (String?, String?), rest: [String]) {
@@ -61,7 +68,12 @@ func runShell(env: Env) -> Int32 {
         }
 
         let lower = trimmed.lowercased()
-        if lower == "exit" || lower == "quit" { break }
+        if lower == "exit" || lower == "quit" {
+#if os(macOS)
+            DistributedNotificationCenter.default().post(name: .tdoExit, object: nil)
+#endif
+            break
+        }
 
         let argv = trimmed.split(separator: " ").map(String.init)
         do {
@@ -72,6 +84,21 @@ func runShell(env: Env) -> Int32 {
             case .list:
                 let tasks = try engine.openTasks(env: env)
                 renderer.printBlock(renderer.renderOpenList(tasks))
+            case .pin:
+#if os(macOS)
+                DistributedNotificationCenter.default().post(name: .tdoPin, object: nil)
+#endif
+                break
+            case .unpin:
+#if os(macOS)
+                DistributedNotificationCenter.default().post(name: .tdoUnpin, object: nil)
+#endif
+                break
+            case .exit:
+#if os(macOS)
+                DistributedNotificationCenter.default().post(name: .tdoExit, object: nil)
+#endif
+                break
             default:
                 let (lines, mutated, _) = engine.execute(cmd, env: env)
                 renderer.printBlock(lines)
@@ -112,6 +139,30 @@ func runEntry() -> Int32 {
         case .list:
             let tasks = try engine.openTasks(env: env)
             renderer.printBlock(renderer.renderOpenList(tasks))
+            return ExitCode.ok.rawValue
+
+        case .pin:
+#if os(macOS)
+            DistributedNotificationCenter.default().post(name: .tdoPin, object: nil)
+#else
+            renderer.printBlock(["pin is only available on macOS"])
+#endif
+            return ExitCode.ok.rawValue
+
+        case .unpin:
+#if os(macOS)
+            DistributedNotificationCenter.default().post(name: .tdoUnpin, object: nil)
+#else
+            renderer.printBlock(["unpin is only available on macOS"])
+#endif
+            return ExitCode.ok.rawValue
+
+        case .exit:
+#if os(macOS)
+            DistributedNotificationCenter.default().post(name: .tdoExit, object: nil)
+#else
+            renderer.printBlock(["exit is only available on macOS"])
+#endif
             return ExitCode.ok.rawValue
 
         case .do_, .find, .foo, .act, .undo, .show:
