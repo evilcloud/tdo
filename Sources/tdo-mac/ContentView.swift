@@ -136,6 +136,12 @@ final class ViewModel: ObservableObject {
             NSApp.terminate(nil)
             return
         }
+        if case .config = cmd {
+            Config.openEditor(env.configURL)
+            status = "opened config"
+            command = ""
+            return
+        }
 #endif
 
         let (out, mutated, _) = engine.execute(cmd, env: env)

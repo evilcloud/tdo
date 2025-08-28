@@ -14,6 +14,7 @@ public enum Command {
     case pin
     case unpin
     case exit
+    case config
 }
 
 enum ParseError: Error, CustomStringConvertible {
@@ -42,6 +43,7 @@ public struct Parser {
         if first == "pin" { return .pin }
         if first == "unpin" { return .unpin }
         if first == "exit" { return .exit }
+        if first == "config" { return .config }
 
         // action-first sugar
         if first == "done" || first == "remove" {

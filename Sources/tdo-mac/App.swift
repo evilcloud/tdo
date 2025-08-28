@@ -12,11 +12,14 @@ extension Notification.Name {
 }
 
 final class PinObserver: ObservableObject {
-    @Published var isPinned = false
+    @Published var isPinned: Bool
+    private let transparency: Double
 
     private var observers: [NSObjectProtocol] = []
 
-    init() {
+    init(config: Config) {
+        self.isPinned = config.pin
+        self.transparency = Double(config.transparency) / 100.0
         let center = DistributedNotificationCenter.default()
         observers.append(
             center.addObserver(forName: .tdoPin, object: nil, queue: .main) { [weak self] _ in
@@ -35,6 +38,7 @@ final class PinObserver: ObservableObject {
                 NSApp.terminate(nil)
             }
         )
+        DispatchQueue.main.async { self.applyPin() }
     }
 
     deinit {
@@ -47,15 +51,20 @@ final class PinObserver: ObservableObject {
     func applyPin() {
         for window in NSApp.windows {
             window.level = isPinned ? .floating : .normal
+            window.alphaValue = CGFloat(transparency)
         }
     }
 }
 
 @main
 struct TDOMacApp: App {
-    @StateObject private var pinObserver = PinObserver()
+    @StateObject private var pinObserver: PinObserver
+    private let env: Env
 
     init() {
+        let env = try! Env()
+        self.env = env
+        _pinObserver = StateObject(wrappedValue: PinObserver(config: env.config))
         DispatchQueue.main.async {
             NSApp.setActivationPolicy(.regular)
             NSApp.activate(ignoringOtherApps: true)
@@ -67,7 +76,7 @@ struct TDOMacApp: App {
 
     var body: some Scene {
         WindowGroup("tdo") {
-            ContentView(engine: Engine(), env: try! Env())
+            ContentView(engine: Engine(), env: env)
                 .environmentObject(pinObserver)
                 .frame(
                     minWidth: 720, idealWidth: 720, maxWidth: .infinity,

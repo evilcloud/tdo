@@ -99,6 +99,9 @@ func runShell(env: Env) -> Int32 {
                 DistributedNotificationCenter.default().post(name: .tdoExit, object: nil)
 #endif
                 break
+            case .config:
+                Config.openEditor(env.configURL)
+                continue
             default:
                 let (lines, mutated, _) = engine.execute(cmd, env: env)
                 renderer.printBlock(lines)
@@ -163,6 +166,9 @@ func runEntry() -> Int32 {
 #else
             renderer.printBlock(["exit is only available on macOS"])
 #endif
+            return ExitCode.ok.rawValue
+        case .config:
+            Config.openEditor(env.configURL)
             return ExitCode.ok.rawValue
 
         case .do_, .find, .foo, .act, .undo, .show:

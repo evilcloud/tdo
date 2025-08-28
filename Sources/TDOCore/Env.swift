@@ -1,6 +1,8 @@
 import Foundation
 
 public struct Env {
+    public let config: Config
+    public let configURL: URL
     public let activeURL: URL
     public let archiveURL: URL
     public let fm = FileManager.default
@@ -10,11 +12,15 @@ public struct Env {
         let dir = home.appendingPathComponent(".tdo", isDirectory: true)
         try Env.ensureDir(dir)
 
+        let configURL = dir.appendingPathComponent("config")
+        self.configURL = configURL
+        self.config = try Config.loadOrCreate(at: configURL)
+
         let envActive = ProcessInfo.processInfo.environment["TDO_FILE"]
         let envArchive = ProcessInfo.processInfo.environment["TDO_ARCHIVE"]
 
-        let active = (activePath ?? envActive) ?? dir.appendingPathComponent("active.md").path
-        let archive = (archivePath ?? envArchive) ?? dir.appendingPathComponent("archive.md").path
+        let active = (activePath ?? envActive) ?? config.active ?? dir.appendingPathComponent("active.md").path
+        let archive = (archivePath ?? envArchive) ?? config.archive ?? dir.appendingPathComponent("archive.md").path
 
         self.activeURL = URL(fileURLWithPath: active)
         self.archiveURL = URL(fileURLWithPath: archive)
@@ -45,7 +51,7 @@ public struct Env {
 
     private static func ensureFile(_ url: URL) throws {
         if !FileManager.default.fileExists(atPath: url.path) {
-            FileManager.default.createFile(
+            _ = FileManager.default.createFile(
                 atPath: url.path, contents: Data(),
                 attributes: [.posixPermissions: NSNumber(value: Int16(0o600))])
         }
