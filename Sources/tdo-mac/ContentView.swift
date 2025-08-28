@@ -15,6 +15,17 @@ private extension Color {
     }
 }
 
+private extension View {
+    @ViewBuilder
+    func selectable() -> some View {
+        if #available(macOS 12.0, *) {
+            self.textSelection(.enabled)
+        } else {
+            self
+        }
+    }
+}
+
 final class ViewModel: ObservableObject {
     @Published var tasks: [OpenTask] = []
     @Published var lines: [String]? = nil
@@ -305,6 +316,7 @@ struct ContentView: View {
                 }
                 Spacer()
             }
+            .selectable()
 
             // LIST (simple rows, no separators, soft highlight for selection)
             ScrollViewReader { proxy in
@@ -347,6 +359,7 @@ struct ContentView: View {
                         }
                     }
                 }
+                .selectable()
                 .onChange(of: vm.selectedIndex) { newIdx in
                     guard vm.lines == nil,
                           let newIdx,
@@ -374,6 +387,7 @@ struct ContentView: View {
                         if vm.lines != nil {
                             vm.refresh()
                         }
+                        vm.command = ""
                     }
                 )
                 .frame(height: 28)
