@@ -23,6 +23,7 @@ final class ViewModel: ObservableObject {
         self.mask = TimestampMasker(age: age)
         self.renderer = Renderer(
             config: RenderConfig(
+                colorize: false,
                 blankLineBeforeBlock: false,
                 blankLineAfterBlock: false
             )
@@ -82,6 +83,7 @@ final class ViewModel: ObservableObject {
             title = "tdo - find" + ((q ?? "").isEmpty ? "" : " [\(q!)]")
             status = nil
             selectedIndex = nil
+            command = ""  // clear search field
             return
         }
         if case .foo(let q) = cmd {
@@ -90,6 +92,7 @@ final class ViewModel: ObservableObject {
             title = "tdo - foo" + ((q ?? "").isEmpty ? "" : " [\(q!)]")
             status = nil
             selectedIndex = nil
+            command = ""  // clear search field
             return
         }
 
