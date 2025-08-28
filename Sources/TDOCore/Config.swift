@@ -3,7 +3,7 @@ import Foundation
 import AppKit
 #endif
 
-public struct Config {
+public struct Config: Equatable {
     public var transparency: Int
     public var active: String?
     public var archive: String?
