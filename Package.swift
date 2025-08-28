@@ -25,8 +25,9 @@ package.products.append(
 package.targets.append(
     .executableTarget(
         name: "tdo-mac",
-        dependencies: ["TDOCore"],
-        path: "Sources/tdo-mac"
+        dependencies: ["TDOCore", "TDOTerminal"],
+        path: "Sources/tdo-mac",
+        resources: [.process("Info.plist")]
     )
 )
 #endif

@@ -1,22 +1,32 @@
 import AppKit
 import SwiftUI
 import TDOCore
+import TDOTerminal
 
 final class ViewModel: ObservableObject {
     @Published var tasks: [OpenTask] = []
+    @Published var lines: [String]? = nil
     @Published var command: String = ""
     @Published var status: String? = nil  // last action / feedback
     @Published var selectedIndex: Int? = nil  // keyboard selection
+    @Published var title: String = "tdo"
 
     private let engine: Engine
     private let env: Env
     private let age = AgeLabeler()
     private let mask: TimestampMasker
+    private let renderer: Renderer
 
     init(engine: Engine, env: Env) {
         self.engine = engine
         self.env = env
         self.mask = TimestampMasker(age: age)
+        self.renderer = Renderer(
+            config: RenderConfig(
+                blankLineBeforeBlock: false,
+                blankLineAfterBlock: false
+            )
+        )
         refresh()
     }
 
@@ -24,6 +34,8 @@ final class ViewModel: ObservableObject {
         do {
             let all = try engine.openTasks(env: env)
             tasks = all.sorted(by: { $0.createdAt > $1.createdAt })
+            lines = nil
+            title = "tdo"
             if selectedIndex.map({ $0 >= tasks.count }) ?? false {
                 selectedIndex = tasks.isEmpty ? nil : 0
             }
@@ -44,6 +56,13 @@ final class ViewModel: ObservableObject {
         let cmd: Command
         do { cmd = try Parser.parse(argv: argv) } catch { cmd = .do_(line) }
 
+        // Special handling for list to restore open tasks
+        if case .list = cmd {
+            refresh()
+            status = nil
+            return
+        }
+
         // Special handling for show: collapse to a single status line
         if case .show(let pfx) = cmd {
             let (lines, _, _) = engine.execute(cmd, env: env)
@@ -56,22 +75,52 @@ final class ViewModel: ObservableObject {
             return
         }
 
+        // Special handling for find/foo: render lines and update title
+        if case .find(let q) = cmd {
+            let (out, _, _) = engine.execute(cmd, env: env)
+            lines = renderer.render(out)
+            title = "tdo - find" + ((q ?? "").isEmpty ? "" : " [\(q!)]")
+            status = nil
+            selectedIndex = nil
+            return
+        }
+        if case .foo(let q) = cmd {
+            let (out, _, _) = engine.execute(cmd, env: env)
+            lines = renderer.render(out)
+            title = "tdo - foo" + ((q ?? "").isEmpty ? "" : " [\(q!)]")
+            status = nil
+            selectedIndex = nil
+            return
+        }
+
+#if os(macOS)
+        if case .pin = cmd {
+            DistributedNotificationCenter.default().post(name: .tdoPin, object: nil)
+            status = "pinned window"
+            command = ""
+            return
+        }
+        if case .unpin = cmd {
+            DistributedNotificationCenter.default().post(name: .tdoUnpin, object: nil)
+            status = "unpinned window"
+            command = ""
+            return
+        }
+        if case .exit = cmd {
+            NSApp.terminate(nil)
+            return
+        }
+#endif
+
         let (out, mutated, _) = engine.execute(cmd, env: env)
         status = out.first
-        if mutated || isListy(cmd) { refresh() }
-        if mutated { command = "" }
+        if mutated { refresh(); command = "" }
     }
 
     func undoLast() {
         let (lines, mutated, _) = engine.execute(.undo, env: env)
         if let first = lines.first { status = first }
         if mutated { refresh() }
-    }
-
-    func isListy(_ cmd: Command) -> Bool {
-        if case .list = cmd { return true }
-        if case .find = cmd { return true }
-        return false
     }
 
     func ageLabel(_ t: OpenTask) -> String { age.label(createdAt: t.createdAt) }
@@ -163,11 +212,10 @@ struct CommandField: NSViewRepresentable {
     func makeNSView(context: Context) -> NSTextField {
         let tf = NSTextField(string: text)
         tf.isBordered = false
+        tf.isBezeled = false
         tf.focusRingType = .none
-        tf.drawsBackground = true
-        tf.wantsLayer = true
-        tf.layer?.cornerRadius = 6
-        tf.backgroundColor = NSColor.windowBackgroundColor
+        tf.drawsBackground = false
+        tf.backgroundColor = .clear
         tf.textColor = NSColor.labelColor
         tf.placeholderString = placeholder
         tf.font = NSFont.systemFont(ofSize: 15)
@@ -195,6 +243,7 @@ struct CommandField: NSViewRepresentable {
 struct ContentView: View {
     @StateObject private var vm: ViewModel
     @State private var pageStep: Int = 10
+    @EnvironmentObject private var pinObserver: PinObserver
 
     init(engine: Engine, env: Env) {
         _vm = StateObject(wrappedValue: ViewModel(engine: engine, env: env))
@@ -204,9 +253,13 @@ struct ContentView: View {
         VStack(spacing: 8) {
             // Status line
             HStack {
-                Text(vm.status ?? "\(vm.tasks.count) open")
+                Text(
+                    vm.status ?? (
+                        vm.lines.map { "\($0.count) results" }
+                        ?? "\(vm.tasks.count) open"
+                    )
+                )
                     .font(.system(size: 14))
-                    .foregroundColor(.gray)
                     .lineLimit(3)
                     .multilineTextAlignment(.leading)
                 Spacer()
@@ -216,27 +269,40 @@ struct ContentView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(vm.tasks.enumerated()), id: \.element.uid) { idx, t in
-                            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                Text("[\(t.uid)]").font(.system(size: 15, design: .monospaced))
-                                Text(t.text).font(.system(size: 15)).lineLimit(1).truncationMode(.tail)
-                                Spacer(minLength: 12)
-                                Text("· \(vm.ageLabel(t))").foregroundColor(.gray).font(.system(size: 13))
+                        if let lines = vm.lines {
+                            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                                Text(line)
+                                    .font(.system(size: 15, design: .monospaced))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(
-                                vm.selectedIndex == idx ? Color.accentColor.opacity(0.12) : .clear
-                            )
-                            .contentShape(Rectangle())
-                            .onTapGesture { vm.selectTask(idx) }
-                            .id(t.uid)
+                        } else {
+                            ForEach(Array(vm.tasks.enumerated()), id: \.element.uid) { idx, t in
+                                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                    Text("[\(t.uid)]").font(.system(size: 15, design: .monospaced))
+                                    Text(t.text).font(.system(size: 15)).lineLimit(1).truncationMode(.tail)
+                                    Spacer(minLength: 12)
+                                    Text("· \(vm.ageLabel(t))").foregroundColor(.gray).font(.system(size: 13))
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(
+                                    vm.selectedIndex == idx ? Color.accentColor.opacity(0.12) : .clear
+                                )
+                                .contentShape(Rectangle())
+                                .onTapGesture { vm.selectTask(idx) }
+                                .id(t.uid)
+                            }
                         }
                     }
                 }
                 .onChange(of: vm.selectedIndex) { newIdx in
-                    guard let newIdx, newIdx >= 0, newIdx < vm.tasks.count else { return }
+                    guard vm.lines == nil,
+                          let newIdx,
+                          newIdx >= 0,
+                          newIdx < vm.tasks.count else { return }
                     withAnimation(.easeInOut(duration: 0.15)) {
                         proxy.scrollTo(vm.tasks[newIdx].uid, anchor: .center)
                     }
@@ -244,23 +310,57 @@ struct ContentView: View {
             }
 
             // COMMAND FIELD (captures ⏎, ↑/↓, PgUp/PgDn)
-            CommandField(
-                text: $vm.command,
-                placeholder:
-                    "Type a command or just text…  (e.g.  do buy coffee   |   ABC done   |   undo)",
-                focusOnAppear: true,
-                onSubmit: { vm.submit() },
-                onUp: { vm.moveSelection(by: -1) },
-                onDown: { vm.moveSelection(by: +1) },
-                onPageUp: { vm.moveSelection(by: -pageStep) },
-                onPageDown: { vm.moveSelection(by: +pageStep) }
-            )
-            .frame(height: 30)
+            HStack(spacing: 8) {
+                CommandField(
+                    text: $vm.command,
+                    placeholder:
+                        "Type a command or just text…  (e.g.  do buy coffee   |   ABC done   |   undo)",
+                    focusOnAppear: true,
+                    onSubmit: { vm.submit() },
+                    onUp: { vm.moveSelection(by: -1) },
+                    onDown: { vm.moveSelection(by: +1) },
+                    onPageUp: { vm.moveSelection(by: -pageStep) },
+                    onPageDown: { vm.moveSelection(by: +pageStep) }
+                )
+                .frame(height: 28)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 12)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(20)
+            }
             .padding(.top, 8)
         }
         .padding(20)
         .background(Color(NSColor.windowBackgroundColor))
         .preferredColorScheme(.dark)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(vm.title)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: {
+                    pinObserver.isPinned.toggle()
+                    pinObserver.applyPin()
+                }) {
+                    Image(systemName: pinObserver.isPinned ? "pin.fill" : "pin")
+                        .rotationEffect(.degrees(45))
+                }
+            }
+        }
+        .onAppear {
+            // Blend title bar with the task list area
+            if let window = NSApp.windows.first {
+                window.titleVisibility = .hidden
+                window.titlebarAppearsTransparent = true
+                window.backgroundColor = NSColor.windowBackgroundColor
+                window.title = vm.title
+            }
+        }
+        .onChange(of: vm.title) { newTitle in
+            if let window = NSApp.windows.first {
+                window.title = newTitle
+            }
+        }
         // Optional hotkeys from App.swift (if you kept those commands)
         .onReceive(NotificationCenter.default.publisher(for: .tdoUndo)) { _ in vm.undoLast() }
         .onReceive(NotificationCenter.default.publisher(for: .tdoRefresh)) { _ in vm.refresh() }
