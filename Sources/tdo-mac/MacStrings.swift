@@ -27,6 +27,12 @@ enum MacStrings {
     static let statusPinOff = NSLocalizedString("pin off", comment: "Status when pin config disabled")
     static let statusSetTransparencyFormat = NSLocalizedString("set transparency to %d", comment: "Format for transparency change")
 
+    // MARK: - Errors
+    static let errorFormat = NSLocalizedString("error: %@", comment: "Generic error message with description")
+    static var errorPrefix: String {
+        errorFormat.components(separatedBy: "%@").first?.trimmingCharacters(in: .whitespaces) ?? "error:"
+    }
+
     // MARK: - Placeholder and counts
     static let commandPlaceholder = NSLocalizedString(
         "Type a command or just text…  (e.g.  do buy coffee   |   ABC done   |   undo)",
@@ -44,6 +50,9 @@ enum MacStrings {
     }
     static func openCount(_ count: Int) -> String {
         String(format: openFormat, count)
+    }
+    static func error(_ error: Error) -> String {
+        String(format: errorFormat, String(describing: error))
     }
 }
 

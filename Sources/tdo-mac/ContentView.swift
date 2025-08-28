@@ -64,7 +64,7 @@ final class ViewModel: ObservableObject {
                 selectedIndex = tasks.isEmpty ? nil : 0
             }
         } catch {
-            status = "error: \(error)"
+            status = MacStrings.error(error)
         }
     }
 
@@ -160,7 +160,7 @@ final class ViewModel: ObservableObject {
                 refresh()
                 status = MacStrings.setTransparency(Int(v))
             } catch {
-                status = "error: \(error)"
+                status = MacStrings.error(error)
             }
             DistributedNotificationCenter.default().post(name: .tdoReloadConfig, object: nil)
             command = ""
@@ -175,7 +175,7 @@ final class ViewModel: ObservableObject {
                 refresh()
                 status = on ? MacStrings.statusPinOn : MacStrings.statusPinOff
             } catch {
-                status = "error: \(error)"
+                status = MacStrings.error(error)
             }
             DistributedNotificationCenter.default().post(name: .tdoReloadConfig, object: nil)
             command = ""
@@ -328,7 +328,7 @@ struct ContentView: View {
             return Text(line).foregroundColor(.green)
         }
         if line.hasPrefix("remove:") { return Text(line).foregroundColor(.red) }
-        if line.hasPrefix("error:") { return Text(line).foregroundColor(.red).bold() }
+        if line.hasPrefix(MacStrings.errorPrefix) { return Text(line).foregroundColor(.red).bold() }
         if line.hasPrefix("note:") { return Text(line).foregroundColor(.gray) }
         if line.contains(" @ ") && line.contains(" status: ") { return Text(line).foregroundColor(.gray) }
         if line.hasPrefix("["), let close = line.firstIndex(of: "]") {
