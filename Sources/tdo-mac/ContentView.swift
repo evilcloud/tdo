@@ -9,7 +9,8 @@ private extension Color {
         if #available(macOS 12.0, *) {
             return .cyan
         } else {
-            return Color(nsColor: .systemTeal)
+            // Approximate `.systemTeal` so the accent renders on macOS 11
+            return Color(red: 0.0, green: 0.5, blue: 0.5)
         }
     }
 }
