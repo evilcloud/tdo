@@ -32,7 +32,7 @@ final class ViewModel: ObservableObject {
     @Published var command: String = ""
     @Published var status: String? = nil  // last action / feedback
     @Published var selectedIndex: Int? = nil  // keyboard selection
-    @Published var title: String = "tdo"
+    @Published var title: String = MacStrings.appTitle
 
     private let engine: Engine
     private var env: Env
@@ -59,7 +59,7 @@ final class ViewModel: ObservableObject {
             let all = try engine.openTasks(env: env)
             tasks = all.sorted(by: { $0.createdAt > $1.createdAt })
             lines = nil
-            title = "tdo"
+            title = MacStrings.appTitle
             if selectedIndex.map({ $0 >= tasks.count }) ?? false {
                 selectedIndex = tasks.isEmpty ? nil : 0
             }
@@ -103,7 +103,7 @@ final class ViewModel: ObservableObject {
         if case .find(let q) = cmd {
             let (out, _, _) = engine.execute(cmd, env: env)
             lines = renderer.render(out)
-            title = "tdo - find" + ((q ?? "").isEmpty ? "" : " [\(q!)]")
+            title = MacStrings.findTitlePrefix + ((q ?? "").isEmpty ? "" : " [\(q!)]")
             status = nil
             selectedIndex = nil
             command = ""  // clear search field
@@ -112,7 +112,7 @@ final class ViewModel: ObservableObject {
         if case .foo(let q) = cmd {
             let (out, _, _) = engine.execute(cmd, env: env)
             lines = renderer.render(out)
-            title = "tdo - foo" + ((q ?? "").isEmpty ? "" : " [\(q!)]")
+            title = MacStrings.fooTitlePrefix + ((q ?? "").isEmpty ? "" : " [\(q!)]")
             status = nil
             selectedIndex = nil
             command = ""  // clear search field
@@ -122,13 +122,13 @@ final class ViewModel: ObservableObject {
 #if os(macOS)
         if case .pin = cmd {
             DistributedNotificationCenter.default().post(name: .tdoPin, object: nil)
-            status = "pinned window"
+            status = MacStrings.statusPinnedWindow
             command = ""
             return
         }
         if case .unpin = cmd {
             DistributedNotificationCenter.default().post(name: .tdoUnpin, object: nil)
-            status = "unpinned window"
+            status = MacStrings.statusUnpinnedWindow
             command = ""
             return
         }
@@ -139,7 +139,7 @@ final class ViewModel: ObservableObject {
         if case .configShow = cmd {
             if let text = try? String(contentsOf: env.configURL, encoding: .utf8) {
                 lines = text.split(separator: "\n").map(String.init)
-                title = "tdo - config"
+                title = MacStrings.configTitle
                 status = nil
                 selectedIndex = nil
             }
@@ -158,7 +158,7 @@ final class ViewModel: ObservableObject {
             do {
                 env = try env.reloading()
                 refresh()
-                status = "set transparency to \(v)"
+                status = MacStrings.setTransparency(Int(v))
             } catch {
                 status = "error: \(error)"
             }
@@ -173,7 +173,7 @@ final class ViewModel: ObservableObject {
             do {
                 env = try env.reloading()
                 refresh()
-                status = on ? "pin on" : "pin off"
+                status = on ? MacStrings.statusPinOn : MacStrings.statusPinOff
             } catch {
                 status = "error: \(error)"
             }
@@ -349,10 +349,10 @@ struct ContentView: View {
                         .lineLimit(3)
                         .multilineTextAlignment(.leading)
                 } else if let lines = vm.lines {
-                    Text("\(lines.count) results")
+                    Text(MacStrings.results(lines.count))
                         .font(.system(size: 14, design: .monospaced))
                 } else {
-                    Text("\(vm.tasks.count) open")
+                    Text(MacStrings.openCount(vm.tasks.count))
                         .font(.system(size: 14, design: .monospaced))
                 }
                 Spacer()
@@ -416,8 +416,7 @@ struct ContentView: View {
             HStack(spacing: 8) {
                 CommandField(
                     text: $vm.command,
-                    placeholder:
-                        "Type a command or just text…  (e.g.  do buy coffee   |   ABC done   |   undo)",
+                    placeholder: MacStrings.commandPlaceholder,
                     focusOnAppear: true,
                     onSubmit: { vm.submit() },
                     onUp: {
