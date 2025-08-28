@@ -9,7 +9,7 @@ struct FileIO {
     static func readLines(_ url: URL) throws -> [String] {
         let data: Data
         do { data = try Data(contentsOf: url) } catch {
-            throw FileIOError.readFailed("Failed to read \(url.path): \(error)")
+            throw FileIOError.readFailed(CoreStrings.fileReadFailed(path: url.path, error: error))
         }
         guard let s = String(data: data, encoding: .utf8) else { return [] }
         return s.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).map(
@@ -39,7 +39,7 @@ struct FileIO {
         } catch {
             // best effort cleanup
             try? FileManager.default.removeItem(at: tmp)
-            throw FileIOError.atomicWriteFailed("Atomic write failed for \(url.path): \(error)")
+            throw FileIOError.atomicWriteFailed(CoreStrings.fileAtomicWriteFailed(path: url.path, error: error))
         }
     }
 

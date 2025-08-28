@@ -17,7 +17,7 @@ public struct Engine {
             switch cmd {
             case .shell:
                 // REPL is handled by main.swift; treat reaching here as a user-level misuse.
-                return (["error: 'shell' is only valid as a top-level command"], false, .userError)
+                return ([CoreStrings.errorShellOnlyTopLevel()], false, .userError)
 
             case .do_(let text):
                 return try doAdd(text: text, env: env)
@@ -44,20 +44,20 @@ public struct Engine {
                 return try perform(ids: ids, action: action, status: status, env: env)
 
             case .pin, .unpin:
-                return (["note: pin/unpin handled by macOS app"], false, .ok)
+                return ([CoreStrings.notePinHandledByMac()], false, .ok)
             case .exit:
-                return (["note: exit handled by macOS app"], false, .ok)
+                return ([CoreStrings.noteExitHandledByMac()], false, .ok)
             case .configShow, .configOpen, .configTransparency, .configPin:
-                return (["note: config handled externally"], false, .ok)
+                return ([CoreStrings.noteConfigHandledExternally()], false, .ok)
             }
         } catch let e as FileIOError {
-            return (["error: \(e)"], false, .ioError)
+            return ([CoreStrings.error("\(e)")], false, .ioError)
         } catch let e as UIDError {
-            return (["error: \(e)"], false, .unexpected)
+            return ([CoreStrings.error("\(e)")], false, .unexpected)
         } catch let e as ParseError {
-            return (["error: \(e.description)"], false, .userError)
+            return ([CoreStrings.error(e.description)], false, .userError)
         } catch {
-            return (["error: \(error)"], false, .unexpected)
+            return ([CoreStrings.error("\(error)")], false, .unexpected)
         }
     }
 
@@ -82,9 +82,7 @@ public struct Engine {
         if openCands.count == 1 { return (notes + detail(open: openCands[0]), false, .ok) }
         if openCands.count > 1 {
             let chosen = openCands.max(by: { $0.createdAt < $1.createdAt })!
-            notes.append(
-                "note: ambiguous prefix '\(prefix)' → chose \(chosen.uid) among [\(openCands.map{$0.uid}.joined(separator: ","))]"
-            )
+            notes.append(CoreStrings.noteAmbiguousPrefix(prefix: prefix, chosen: chosen.uid, choices: openCands.map { $0.uid }))
             return (notes + detail(open: chosen), false, .ok)
         }
 
@@ -94,26 +92,27 @@ public struct Engine {
         }
         let archCands = arch.filter { $0.uid.hasPrefix(prefix) }
         if archCands.isEmpty {
-            return (["note: no task matches '\(prefix)'"], false, .userError)
+            return ([CoreStrings.noteNoTaskMatches(prefix: prefix)], false, .userError)
         }
         if archCands.count == 1 { return (notes + detail(archived: archCands[0]), false, .ok) }
         let chosenA = archCands.max(by: { $0.completedAt < $1.completedAt })!
-        notes.append(
-            "note: ambiguous prefix '\(prefix)' → chose \(chosenA.uid) among [\(archCands.map{$0.uid}.joined(separator: ","))]"
-        )
+        notes.append(CoreStrings.noteAmbiguousPrefix(prefix: prefix, chosen: chosenA.uid, choices: archCands.map { $0.uid }))
         return (notes + detail(archived: chosenA), false, .ok)
     }
 
     private func detail(open t: OpenTask) -> [String] {
-        ["[\(t.uid)] \(t.text) · \(countInfo(t.text))", "created: \(t.createdAt)"]
+        CoreStrings.detailOpen(uid: t.uid, text: t.text, count: countInfo(t.text), createdAt: t.createdAt)
     }
 
     private func detail(archived a: ArchivedTask) -> [String] {
-        [
-            "[\(a.uid)] \(a.text) · \(countInfo(a.text))", "created: \(a.createdAt)",
-            "completed: \(a.completedAt)",
-            "status: \(a.status)",
-        ]
+        CoreStrings.detailArchived(
+            uid: a.uid,
+            text: a.text,
+            count: countInfo(a.text),
+            createdAt: a.createdAt,
+            completedAt: a.completedAt,
+            status: a.status
+        )
     }
 
     // MARK: - Commands
@@ -125,7 +124,7 @@ public struct Engine {
         // Reject empty/whitespace-only tasks
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            return (["note: empty task text — nothing added"], false, .userError)
+            return ([CoreStrings.noteEmptyTaskText()], false, .userError)
         }
 
         var open = try FileIO.readOpen(env.activeURL)
@@ -136,12 +135,12 @@ public struct Engine {
         let task = OpenTask(uid: uid, createdAt: created, text: trimmed)
         open.append(task)
         try FileIO.writeOpen(env.activeURL, tasks: open)
-        return (["added: [\(uid)] \(trimmed) · \(countInfo(trimmed))"], true, .ok)
+        return ([CoreStrings.added(uid: uid, text: trimmed, count: countInfo(trimmed))], true, .ok)
     }
 
     private func listOpen(env: Env) throws -> [String] {
         let open = try FileIO.readOpen(env.activeURL)
-        return open.sorted(by: { $0.createdAt > $1.createdAt }).map { "[\($0.uid)] \($0.text)" }
+        return open.sorted(by: { $0.createdAt > $1.createdAt }).map { CoreStrings.listItem(uid: $0.uid, text: $0.text) }
     }
 
     private func findOpen(env: Env, query: String?) throws -> [String] {
@@ -151,7 +150,7 @@ public struct Engine {
         let filtered = open.filter {
             $0.uid.lowercased().contains(q) || $0.text.lowercased().contains(q)
         }
-        return filtered.sorted(by: { $0.createdAt > $1.createdAt }).map { "[\($0.uid)] \($0.text)" }
+        return filtered.sorted(by: { $0.createdAt > $1.createdAt }).map { CoreStrings.listItem(uid: $0.uid, text: $0.text) }
     }
 
     private func fooAll(env: Env, query: String?) throws -> [String] {
@@ -174,11 +173,11 @@ public struct Engine {
         var lines: [String] = []
         lines.append(
             contentsOf: openFiltered.sorted(by: { $0.createdAt > $1.createdAt }).map {
-                "[\($0.uid)] \($0.text)"
+                CoreStrings.listItem(uid: $0.uid, text: $0.text)
             })
         lines.append(
             contentsOf: archFiltered.sorted(by: { $0.completedAt > $1.completedAt }).map {
-                "[\($0.uid)] \($0.text) @ \($0.completedAt) status: \($0.status)"
+                CoreStrings.archivedItem(uid: $0.uid, text: $0.text, completedAt: $0.completedAt, status: $0.status)
             })
         return lines
     }
@@ -193,10 +192,10 @@ public struct Engine {
         var arch = try FileIO.readArchive(env.archiveURL)
 
         guard let last = arch.last else {
-            return (["note: nothing to undo"], false, .userError)
+            return ([CoreStrings.noteNothingToUndo()], false, .userError)
         }
         if open.contains(where: { $0.uid == last.uid }) {
-            return (["note: cannot undo [\(last.uid)]; already open"], false, .userError)
+            return ([CoreStrings.noteCannotUndo(uid: last.uid)], false, .userError)
         }
 
         arch.removeLast()
@@ -206,7 +205,7 @@ public struct Engine {
         try FileIO.writeOpen(env.activeURL, tasks: open)
         try FileIO.writeArchive(env.archiveURL, tasks: arch)
 
-        return (["undo: [\(restored.uid)] \(restored.text)"], true, .ok)
+        return ([CoreStrings.undo(uid: restored.uid, text: restored.text)], true, .ok)
     }
 
     private func perform(
@@ -226,7 +225,7 @@ public struct Engine {
                 if let latest = open.max(by: { $0.createdAt < $1.createdAt }) {
                     return ([latest], [])
                 } else {
-                    return ([], ["no open tasks to mark done"])
+                    return ([], [CoreStrings.noOpenTasksToMarkDone()])
                 }
             } else {
                 let r = UID.resolve(prefixes: ids, open: open)
@@ -234,11 +233,11 @@ public struct Engine {
             }
         }()
 
-        for note in notes { output.append("note: \(note)") }
+        for note in notes { output.append(CoreStrings.note(note)) }
 
         // Nothing to act on → no mutation
         guard !matches.isEmpty else {
-            return (output.isEmpty ? ["note: nothing matched"] : output, false, .userError)
+            return (output.isEmpty ? [CoreStrings.noteNothingMatched()] : output, false, .userError)
         }
 
         let completedAt = env.nowISO8601()
@@ -247,7 +246,7 @@ public struct Engine {
 
         let statusText: String = {
             if let s = status, !s.trimmingCharacters(in: .whitespaces).isEmpty { return s }
-            return (action == .done) ? "done" : "deleted"
+            return (action == .done) ? CoreStrings.statusDone : CoreStrings.statusDeleted
         }()
 
         let acted = Set(matches.map { $0.uid })
@@ -264,9 +263,9 @@ public struct Engine {
                 toArchive.append(arch)
                 switch action {
                 case .done:
-                    output.append("done: [\(t.uid)] \(t.text) status: \(statusText)")
+                    output.append(CoreStrings.done(uid: t.uid, text: t.text, status: statusText))
                 case .remove:
-                    output.append("remove: [\(t.uid)] \(t.text) status: \(statusText)")
+                    output.append(CoreStrings.remove(uid: t.uid, text: t.text, status: statusText))
                 }
             } else {
                 kept.append(t)
@@ -284,7 +283,7 @@ public struct Engine {
         let words = s.split { $0.isWhitespace || $0.isNewline }.filter { !$0.isEmpty }.count
         let chars = s.count
         let bytes = s.lengthOfBytes(using: .utf8)
-        return "\(words)w \(chars)c \(bytes)b"
+        return CoreStrings.countSummary(words: words, chars: chars, bytes: bytes)
     }
 
 }

@@ -59,7 +59,7 @@ public struct Env {
         } else if !isDir.boolValue {
             throw NSError(
                 domain: "Env", code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "\(url.path) exists but is not a directory"])
+                userInfo: [NSLocalizedDescriptionKey: CoreStrings.envNotDirectory(path: url.path)])
         }
     }
 

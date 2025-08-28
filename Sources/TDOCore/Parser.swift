@@ -25,8 +25,8 @@ enum ParseError: Error, CustomStringConvertible {
     case unknownCommand(String)
     var description: String {
         switch self {
-        case .empty: return "no command"
-        case .unknownCommand(let s): return "unknown command: \(s)"
+        case .empty: return CoreStrings.noCommand
+        case .unknownCommand(let s): return CoreStrings.unknownCommand(s)
         }
     }
 }

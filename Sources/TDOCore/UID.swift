@@ -69,14 +69,13 @@ struct UID {
 
             let candidates = open.filter { $0.uid.hasPrefix(pfx) }
             if candidates.isEmpty {
-                notes.append("no open task matches '\(raw)'")
+                notes.append(CoreStrings.uidNoOpenTaskMatches(raw))
             } else if candidates.count == 1 {
                 results.append(candidates[0])
             } else {
                 // ambiguous → choose newest by createdAt, note the choice
                 let chosen = candidates.max(by: { $0.createdAt < $1.createdAt })!
-                let list = candidates.map { $0.uid }.joined(separator: ",")
-                notes.append("ambiguous prefix '\(raw)' → chose \(chosen.uid) among [\(list)]")
+                notes.append(CoreStrings.uidAmbiguousPrefix(raw, chosen: chosen.uid, choices: candidates.map { $0.uid }))
                 results.append(chosen)
             }
         }
