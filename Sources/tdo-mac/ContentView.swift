@@ -3,6 +3,29 @@ import SwiftUI
 import TDOCore
 import TDOTerminal
 
+private extension Color {
+    /// Cyan accent that works on macOS 11+
+    static var tdoCyan: Color {
+        if #available(macOS 12.0, *) {
+            return .cyan
+        } else {
+            // Approximate `.systemTeal` so the accent renders on macOS 11
+            return Color(red: 0.0, green: 0.5, blue: 0.5)
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func selectable() -> some View {
+        if #available(macOS 12.0, *) {
+            self.textSelection(.enabled)
+        } else {
+            self
+        }
+    }
+}
+
 final class ViewModel: ObservableObject {
     @Published var tasks: [OpenTask] = []
     @Published var lines: [String]? = nil
@@ -223,9 +246,12 @@ struct CommandField: NSViewRepresentable {
         tf.focusRingType = .none
         tf.drawsBackground = false
         tf.backgroundColor = .clear
-        tf.textColor = NSColor.labelColor
+        tf.textColor = .white
         tf.placeholderString = placeholder
-        tf.font = NSFont.systemFont(ofSize: 15)
+        tf.font = NSFont.monospacedSystemFont(ofSize: 15, weight: .regular)
+        DispatchQueue.main.async {
+            (tf.window?.fieldEditor(true, for: tf) as? NSTextView)?.insertionPointColor = .white
+        }
         tf.delegate = context.coordinator
 
         if focusOnAppear, !context.coordinator.didFocusOnce {
@@ -256,21 +282,41 @@ struct ContentView: View {
         _vm = StateObject(wrappedValue: ViewModel(engine: engine, env: env))
     }
 
+    private func styled(_ line: String) -> Text {
+        if line.hasPrefix("added:") || line.hasPrefix("done:") || line.hasPrefix("undo:") {
+            return Text(line).foregroundColor(.green)
+        }
+        if line.hasPrefix("remove:") { return Text(line).foregroundColor(.red) }
+        if line.hasPrefix("error:") { return Text(line).foregroundColor(.red).bold() }
+        if line.hasPrefix("note:") { return Text(line).foregroundColor(.gray) }
+        if line.contains(" @ ") && line.contains(" status: ") { return Text(line).foregroundColor(.gray) }
+        if line.hasPrefix("["), let close = line.firstIndex(of: "]") {
+            let uid = String(line[..<line.index(after: close)])
+            let rest = String(line[line.index(after: close)...])
+            return Text(uid).foregroundColor(.tdoCyan) + Text(rest)
+        }
+        return Text(line)
+    }
+
     var body: some View {
         VStack(spacing: 8) {
             // Status line
             HStack {
-                Text(
-                    vm.status ?? (
-                        vm.lines.map { "\($0.count) results" }
-                        ?? "\(vm.tasks.count) open"
-                    )
-                )
-                    .font(.system(size: 14))
-                    .lineLimit(3)
-                    .multilineTextAlignment(.leading)
+                if let status = vm.status {
+                    styled(status)
+                        .font(.system(size: 14, design: .monospaced))
+                        .lineLimit(3)
+                        .multilineTextAlignment(.leading)
+                } else if let lines = vm.lines {
+                    Text("\(lines.count) results")
+                        .font(.system(size: 14, design: .monospaced))
+                } else {
+                    Text("\(vm.tasks.count) open")
+                        .font(.system(size: 14, design: .monospaced))
+                }
                 Spacer()
             }
+            .selectable()
 
             // LIST (simple rows, no separators, soft highlight for selection)
             ScrollViewReader { proxy in
@@ -278,7 +324,7 @@ struct ContentView: View {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         if let lines = vm.lines {
                             ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                                Text(line)
+                                styled(line)
                                     .font(.system(size: 15, design: .monospaced))
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
@@ -287,10 +333,18 @@ struct ContentView: View {
                         } else {
                             ForEach(Array(vm.tasks.enumerated()), id: \.element.uid) { idx, t in
                                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                    Text("[\(t.uid)]").font(.system(size: 15, design: .monospaced))
-                                    Text(t.text).font(.system(size: 15)).lineLimit(1).truncationMode(.tail)
+                                    Text("[\(t.uid)]")
+                                        .foregroundColor(.tdoCyan)
+                                        .font(.system(size: 15, design: .monospaced))
+                                    Text(t.text)
+                                        .foregroundColor(.white)
+                                        .font(.system(size: 15, design: .monospaced))
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
                                     Spacer(minLength: 12)
-                                    Text("· \(vm.ageLabel(t))").foregroundColor(.gray).font(.system(size: 13))
+                                    Text("· \(vm.ageLabel(t))")
+                                        .foregroundColor(.gray)
+                                        .font(.system(size: 13, design: .monospaced))
                                 }
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
@@ -305,6 +359,7 @@ struct ContentView: View {
                         }
                     }
                 }
+                .selectable()
                 .onChange(of: vm.selectedIndex) { newIdx in
                     guard vm.lines == nil,
                           let newIdx,
@@ -332,24 +387,27 @@ struct ContentView: View {
                         if vm.lines != nil {
                             vm.refresh()
                         }
+                        vm.command = ""
                     }
                 )
                 .frame(height: 28)
                 .padding(.vertical, 6)
                 .padding(.horizontal, 12)
-                .background(Color(NSColor.controlBackgroundColor))
+                .background(Color(white: 0.15))
                 .cornerRadius(20)
             }
             .padding(.top, 8)
         }
         .padding(20)
-        .background(Color(NSColor.windowBackgroundColor))
+        .foregroundColor(.white)
+        .background(Color.black)
         .preferredColorScheme(.dark)
         .toolbar {
-            ToolbarItem(placement: .principal) {
+            ToolbarItemGroup(placement: .principal) {
                 Text(vm.title)
+                    .font(.system(size: 16, design: .monospaced))
             }
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
                 Button(action: {
                     pinObserver.isPinned.toggle()
                     pinObserver.applyPin()
@@ -364,7 +422,7 @@ struct ContentView: View {
             if let window = NSApp.windows.first {
                 window.titleVisibility = .hidden
                 window.titlebarAppearsTransparent = true
-                window.backgroundColor = NSColor.windowBackgroundColor
+                window.backgroundColor = .black
                 window.title = vm.title
             }
         }
