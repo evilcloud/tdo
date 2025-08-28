@@ -9,7 +9,7 @@ public struct Env {
 
     public init(activePath: String? = nil, archivePath: String? = nil) throws {
         let home = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
-        let dir = home.appendingPathComponent(".tdo", isDirectory: true)
+        let dir = home.appendingPathComponent(".config/tdo", isDirectory: true)
         try Env.ensureDir(dir)
 
         let configURL = dir.appendingPathComponent("config")

@@ -3,34 +3,96 @@ import Foundation
 import AppKit
 #endif
 
-public struct Config: Codable {
+public struct Config {
     public var transparency: Int
     public var active: String?
     public var archive: String?
+    public var cliEditor: String?
+    public var macEditor: String?
     public var pin: Bool
 
-    public init(transparency: Int = 100, active: String? = nil, archive: String? = nil, pin: Bool = false) {
+    public init(
+        transparency: Int = 100,
+        active: String? = nil,
+        archive: String? = nil,
+        cliEditor: String? = nil,
+        macEditor: String? = nil,
+        pin: Bool = false
+    ) {
         self.transparency = transparency
         self.active = active
         self.archive = archive
+        self.cliEditor = cliEditor
+        self.macEditor = macEditor
         self.pin = pin
     }
 
     public static func loadOrCreate(at url: URL) throws -> Config {
         let fm = FileManager.default
+        let dir = url.deletingLastPathComponent()
         if !fm.fileExists(atPath: url.path) {
-            let def = Config()
+            let def = Config(
+                active: dir.appendingPathComponent("active.md").path,
+                archive: dir.appendingPathComponent("archive.md").path
+            )
             try def.save(to: url)
             return def
         }
-        let data = try Data(contentsOf: url)
-        let dec = JSONDecoder()
-        return try dec.decode(Config.self, from: data)
+
+        let text = try String(contentsOf: url, encoding: .utf8)
+        return parse(text: text, baseDir: dir)
     }
 
     public func save(to url: URL) throws {
-        let data = try JSONEncoder().encode(self)
+        var lines: [String] = []
+        lines.append("# tdo configuration")
+        lines.append("# window transparency percentage (0-100)")
+        lines.append("transparency = \(transparency)")
+        lines.append("")
+        lines.append("# locations of task files")
+        lines.append("active = \(active ?? "")")
+        lines.append("archive = \(archive ?? "")")
+        lines.append("")
+        lines.append("# preferred text editors")
+        lines.append("cli-editor = \(cliEditor ?? "")")
+        lines.append("mac-editor = \(macEditor ?? "")")
+        lines.append("")
+        lines.append("# default pin state (true/false)")
+        lines.append("pin = \(pin ? "true" : "false")")
+        let data = lines.joined(separator: "\n").data(using: .utf8)!
         try data.write(to: url)
+    }
+
+    private static func parse(text: String, baseDir: URL) -> Config {
+        var cfg = Config(
+            active: baseDir.appendingPathComponent("active.md").path,
+            archive: baseDir.appendingPathComponent("archive.md").path
+        )
+        for raw in text.split(separator: "\n") {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.isEmpty || line.hasPrefix("#") { continue }
+            let parts = line.split(separator: "=", maxSplits: 1)
+            guard parts.count == 2 else { continue }
+            let key = parts[0].trimmingCharacters(in: .whitespaces)
+            let value = parts[1].trimmingCharacters(in: .whitespaces)
+            switch key {
+            case "transparency":
+                if let v = Int(value) { cfg.transparency = v }
+            case "active":
+                cfg.active = value.isEmpty ? nil : value
+            case "archive":
+                cfg.archive = value.isEmpty ? nil : value
+            case "cli-editor":
+                cfg.cliEditor = value.isEmpty ? nil : value
+            case "mac-editor":
+                cfg.macEditor = value.isEmpty ? nil : value
+            case "pin":
+                cfg.pin = (value.lowercased() == "true")
+            default:
+                break
+            }
+        }
+        return cfg
     }
 
     public static func openEditor(_ url: URL) {
