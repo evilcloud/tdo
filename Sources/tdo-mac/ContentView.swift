@@ -3,6 +3,17 @@ import SwiftUI
 import TDOCore
 import TDOTerminal
 
+private extension Color {
+    /// Cyan accent that works on macOS 11+
+    static var tdoCyan: Color {
+        if #available(macOS 12.0, *) {
+            return .cyan
+        } else {
+            return Color(nsColor: .systemTeal)
+        }
+    }
+}
+
 final class ViewModel: ObservableObject {
     @Published var tasks: [OpenTask] = []
     @Published var lines: [String]? = nil
@@ -224,9 +235,11 @@ struct CommandField: NSViewRepresentable {
         tf.drawsBackground = false
         tf.backgroundColor = .clear
         tf.textColor = .white
-        tf.insertionPointColor = .white
         tf.placeholderString = placeholder
         tf.font = NSFont.monospacedSystemFont(ofSize: 15, weight: .regular)
+        DispatchQueue.main.async {
+            (tf.window?.fieldEditor(true, for: tf) as? NSTextView)?.insertionPointColor = .white
+        }
         tf.delegate = context.coordinator
 
         if focusOnAppear, !context.coordinator.didFocusOnce {
@@ -268,7 +281,7 @@ struct ContentView: View {
         if line.hasPrefix("["), let close = line.firstIndex(of: "]") {
             let uid = String(line[..<line.index(after: close)])
             let rest = String(line[line.index(after: close)...])
-            return Text(uid).foregroundColor(.cyan) + Text(rest)
+            return Text(uid).foregroundColor(.tdoCyan) + Text(rest)
         }
         return Text(line)
     }
@@ -308,7 +321,7 @@ struct ContentView: View {
                             ForEach(Array(vm.tasks.enumerated()), id: \.element.uid) { idx, t in
                                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                                     Text("[\(t.uid)]")
-                                        .foregroundColor(.cyan)
+                                        .foregroundColor(.tdoCyan)
                                         .font(.system(size: 15, design: .monospaced))
                                     Text(t.text)
                                         .foregroundColor(.white)
@@ -375,11 +388,11 @@ struct ContentView: View {
         .background(Color.black)
         .preferredColorScheme(.dark)
         .toolbar {
-            ToolbarItem(placement: .principal) {
+            ToolbarItemGroup(placement: .principal) {
                 Text(vm.title)
                     .font(.system(size: 16, design: .monospaced))
             }
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
                 Button(action: {
                     pinObserver.isPinned.toggle()
                     pinObserver.applyPin()
