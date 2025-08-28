@@ -27,7 +27,7 @@ package.targets.append(
         name: "tdo-mac",
         dependencies: ["TDOCore", "TDOTerminal"],
         path: "Sources/tdo-mac",
-        resources: [.process("Info.plist")]
+        exclude: ["Info.plist"]
     )
 )
 #endif
