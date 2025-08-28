@@ -9,14 +9,20 @@ extension Notification.Name {
     static let tdoPin = Notification.Name("tdoPin")
     static let tdoUnpin = Notification.Name("tdoUnpin")
     static let tdoExit = Notification.Name("tdoExit")
+    static let tdoReloadConfig = Notification.Name("tdoReloadConfig")
 }
 
 final class PinObserver: ObservableObject {
-    @Published var isPinned = false
+    @Published var isPinned: Bool
+    private var transparency: Double
+    private let configURL: URL
 
     private var observers: [NSObjectProtocol] = []
 
-    init() {
+    init(config: Config, configURL: URL) {
+        self.isPinned = config.pin
+        self.transparency = Double(config.transparency) / 100.0
+        self.configURL = configURL
         let center = DistributedNotificationCenter.default()
         observers.append(
             center.addObserver(forName: .tdoPin, object: nil, queue: .main) { [weak self] _ in
@@ -35,6 +41,17 @@ final class PinObserver: ObservableObject {
                 NSApp.terminate(nil)
             }
         )
+        observers.append(
+            center.addObserver(forName: .tdoReloadConfig, object: nil, queue: .main) { [weak self] _ in
+                guard let self = self else { return }
+                if let cfg = try? Config.loadOrCreate(at: self.configURL) {
+                    self.isPinned = cfg.pin
+                    self.transparency = Double(cfg.transparency) / 100.0
+                    self.applyPin()
+                }
+            }
+        )
+        DispatchQueue.main.async { self.applyPin() }
     }
 
     deinit {
@@ -47,15 +64,20 @@ final class PinObserver: ObservableObject {
     func applyPin() {
         for window in NSApp.windows {
             window.level = isPinned ? .floating : .normal
+            window.alphaValue = CGFloat(transparency)
         }
     }
 }
 
 @main
 struct TDOMacApp: App {
-    @StateObject private var pinObserver = PinObserver()
+    @StateObject private var pinObserver: PinObserver
+    private let env: Env
 
     init() {
+        let env = try! Env()
+        self.env = env
+        _pinObserver = StateObject(wrappedValue: PinObserver(config: env.config, configURL: env.configURL))
         DispatchQueue.main.async {
             NSApp.setActivationPolicy(.regular)
             NSApp.activate(ignoringOtherApps: true)
@@ -67,7 +89,7 @@ struct TDOMacApp: App {
 
     var body: some Scene {
         WindowGroup("tdo") {
-            ContentView(engine: Engine(), env: try! Env())
+            ContentView(engine: Engine(), env: env)
                 .environmentObject(pinObserver)
                 .frame(
                     minWidth: 720, idealWidth: 720, maxWidth: .infinity,
