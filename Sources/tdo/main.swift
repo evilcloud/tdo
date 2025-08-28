@@ -163,19 +163,10 @@ func runEntry() -> Int32 {
     }
 
     // Default to listing tasks when no command is provided
-    if rest.isEmpty {
-        let engine = Engine()
-        let renderer = makeRenderer()
-        if let tasks = try? engine.openTasks(env: env) {
-            renderer.printBlock(renderer.renderOpenList(tasks))
-        } else {
-            renderer.printBlock(["error: could not load tasks"])
-        }
-        return ExitCode.ok.rawValue
-    }
+    let argv = rest.isEmpty ? ["list"] : rest
 
     do {
-        let cmd = try Parser.parse(argv: rest)
+        let cmd = try Parser.parse(argv: argv)
         let engine = Engine()
         let renderer = makeRenderer()
 
