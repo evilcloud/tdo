@@ -19,8 +19,22 @@ public struct Env {
         let envActive = ProcessInfo.processInfo.environment["TDO_FILE"]
         let envArchive = ProcessInfo.processInfo.environment["TDO_ARCHIVE"]
 
-        let active = (activePath ?? envActive) ?? config.active ?? dir.appendingPathComponent("active.md").path
-        let archive = (archivePath ?? envArchive) ?? config.archive ?? dir.appendingPathComponent("archive.md").path
+        let defaultActive = dir.appendingPathComponent("active.txt").path
+        let defaultArchive = dir.appendingPathComponent("archive.txt").path
+
+        if let cfgActive = config.active, cfgActive != defaultActive,
+           fm.fileExists(atPath: defaultActive), !fm.fileExists(atPath: cfgActive) {
+            try Env.ensureDir(URL(fileURLWithPath: cfgActive).deletingLastPathComponent())
+            try fm.moveItem(atPath: defaultActive, toPath: cfgActive)
+        }
+        if let cfgArchive = config.archive, cfgArchive != defaultArchive,
+           fm.fileExists(atPath: defaultArchive), !fm.fileExists(atPath: cfgArchive) {
+            try Env.ensureDir(URL(fileURLWithPath: cfgArchive).deletingLastPathComponent())
+            try fm.moveItem(atPath: defaultArchive, toPath: cfgArchive)
+        }
+
+        let active = (activePath ?? envActive) ?? config.active ?? defaultActive
+        let archive = (archivePath ?? envArchive) ?? config.archive ?? defaultArchive
 
         self.activeURL = URL(fileURLWithPath: active)
         self.archiveURL = URL(fileURLWithPath: archive)
@@ -55,5 +69,36 @@ public struct Env {
                 atPath: url.path, contents: Data(),
                 attributes: [.posixPermissions: NSNumber(value: Int16(0o600))])
         }
+    }
+
+    public func reloading() throws -> Env {
+        let old = self.config
+        let new = try Config.loadOrCreate(at: configURL)
+
+        let dir = configURL.deletingLastPathComponent()
+        let defaultActive = dir.appendingPathComponent("active.txt").path
+        let defaultArchive = dir.appendingPathComponent("archive.txt").path
+
+        let prevActive = old.active ?? defaultActive
+        let prevArchive = old.archive ?? defaultArchive
+        let newActive = new.active ?? defaultActive
+        let newArchive = new.archive ?? defaultArchive
+
+        let activeOverride = self.activeURL.path != prevActive ? self.activeURL.path : nil
+        let archiveOverride = self.archiveURL.path != prevArchive ? self.archiveURL.path : nil
+
+        if activeOverride == nil && prevActive != newActive,
+           fm.fileExists(atPath: prevActive) && !fm.fileExists(atPath: newActive) {
+            try Env.ensureDir(URL(fileURLWithPath: newActive).deletingLastPathComponent())
+            try fm.moveItem(atPath: prevActive, toPath: newActive)
+        }
+
+        if archiveOverride == nil && prevArchive != newArchive,
+           fm.fileExists(atPath: prevArchive) && !fm.fileExists(atPath: newArchive) {
+            try Env.ensureDir(URL(fileURLWithPath: newArchive).deletingLastPathComponent())
+            try fm.moveItem(atPath: prevArchive, toPath: newArchive)
+        }
+
+        return try Env(activePath: activeOverride, archivePath: archiveOverride)
     }
 }

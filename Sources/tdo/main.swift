@@ -48,7 +48,8 @@ func makeRenderer() -> Renderer {
     )
 }
 
-func runShell(env: Env) -> Int32 {
+func runShell(env initialEnv: Env) -> Int32 {
+    var env = initialEnv
     let engine = Engine()
     let renderer = makeRenderer()
 
@@ -101,6 +102,9 @@ func runShell(env: Env) -> Int32 {
                 break
             case .config:
                 Config.openEditor(env.configURL)
+                if let newEnv = try? env.reloading() {
+                    env = newEnv
+                }
                 continue
             default:
                 let (lines, mutated, _) = engine.execute(cmd, env: env)

@@ -35,7 +35,7 @@ final class ViewModel: ObservableObject {
     @Published var title: String = "tdo"
 
     private let engine: Engine
-    private let env: Env
+    private var env: Env
     private let age = AgeLabeler()
     private let mask: TimestampMasker
     private let renderer: Renderer
@@ -138,7 +138,13 @@ final class ViewModel: ObservableObject {
         }
         if case .config = cmd {
             Config.openEditor(env.configURL)
-            status = "opened config"
+            do {
+                env = try env.reloading()
+                refresh()
+                status = "loaded config"
+            } catch {
+                status = "error: \(error)"
+            }
             command = ""
             return
         }

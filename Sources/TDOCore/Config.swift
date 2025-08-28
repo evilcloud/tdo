@@ -32,8 +32,8 @@ public struct Config {
         let dir = url.deletingLastPathComponent()
         if !fm.fileExists(atPath: url.path) {
             let def = Config(
-                active: dir.appendingPathComponent("active.md").path,
-                archive: dir.appendingPathComponent("archive.md").path
+                active: dir.appendingPathComponent("active.txt").path,
+                archive: dir.appendingPathComponent("archive.txt").path
             )
             try def.save(to: url)
             return def
@@ -65,8 +65,8 @@ public struct Config {
 
     private static func parse(text: String, baseDir: URL) -> Config {
         var cfg = Config(
-            active: baseDir.appendingPathComponent("active.md").path,
-            archive: baseDir.appendingPathComponent("archive.md").path
+            active: baseDir.appendingPathComponent("active.txt").path,
+            archive: baseDir.appendingPathComponent("archive.txt").path
         )
         for raw in text.split(separator: "\n") {
             let line = raw.trimmingCharacters(in: .whitespaces)
