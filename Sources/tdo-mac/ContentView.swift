@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import TDOCore
 import TDOTerminal
+import Foundation
 
 private extension Color {
     /// Cyan accent that works on macOS 11+
@@ -32,13 +33,20 @@ final class ViewModel: ObservableObject {
     @Published var command: String = ""
     @Published var status: String? = nil  // last action / feedback
     @Published var selectedIndex: Int? = nil  // keyboard selection
-    @Published var title: String = MacStrings.appTitle
+    @Published var title: String = "tdo"
+    @Published var now: Date = Date()
 
     private let engine: Engine
     private var env: Env
     private let age = AgeLabeler()
     private let mask: TimestampMasker
     private let renderer: Renderer
+    private var timer: Timer?
+    private let iso: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
 
     init(engine: Engine, env: Env) {
         self.engine = engine
@@ -54,21 +62,26 @@ final class ViewModel: ObservableObject {
         refresh()
     }
 
+    deinit { timer?.invalidate() }
+
     func refresh() {
+        _ = checkConfig()
         do {
             let all = try engine.openTasks(env: env)
             tasks = all.sorted(by: { $0.createdAt > $1.createdAt })
             lines = nil
-            title = MacStrings.appTitle
+            title = "tdo"
             if selectedIndex.map({ $0 >= tasks.count }) ?? false {
                 selectedIndex = tasks.isEmpty ? nil : 0
             }
         } catch {
-            status = MacStrings.error(error)
+            status = "error: \(error)"
         }
+        scheduleTimer()
     }
 
     func submit() {
+        if checkConfig() { refresh() }
         let line = command.trimmingCharacters(in: .whitespacesAndNewlines)
         if line.isEmpty, let idx = selectedIndex, idx < tasks.count {
             command = tasks[idx].uid + " "
@@ -103,7 +116,7 @@ final class ViewModel: ObservableObject {
         if case .find(let q) = cmd {
             let (out, _, _) = engine.execute(cmd, env: env)
             lines = renderer.render(out)
-            title = MacStrings.findTitlePrefix + ((q ?? "").isEmpty ? "" : " [\(q!)]")
+            title = "tdo - find" + ((q ?? "").isEmpty ? "" : " [\(q!)]")
             status = nil
             selectedIndex = nil
             command = ""  // clear search field
@@ -112,7 +125,7 @@ final class ViewModel: ObservableObject {
         if case .foo(let q) = cmd {
             let (out, _, _) = engine.execute(cmd, env: env)
             lines = renderer.render(out)
-            title = MacStrings.fooTitlePrefix + ((q ?? "").isEmpty ? "" : " [\(q!)]")
+            title = "tdo - foo" + ((q ?? "").isEmpty ? "" : " [\(q!)]")
             status = nil
             selectedIndex = nil
             command = ""  // clear search field
@@ -122,13 +135,13 @@ final class ViewModel: ObservableObject {
 #if os(macOS)
         if case .pin = cmd {
             DistributedNotificationCenter.default().post(name: .tdoPin, object: nil)
-            status = MacStrings.statusPinnedWindow
+            status = "pinned window"
             command = ""
             return
         }
         if case .unpin = cmd {
             DistributedNotificationCenter.default().post(name: .tdoUnpin, object: nil)
-            status = MacStrings.statusUnpinnedWindow
+            status = "unpinned window"
             command = ""
             return
         }
@@ -139,7 +152,7 @@ final class ViewModel: ObservableObject {
         if case .configShow = cmd {
             if let text = try? String(contentsOf: env.configURL, encoding: .utf8) {
                 lines = text.split(separator: "\n").map(String.init)
-                title = MacStrings.configTitle
+                title = "tdo - config"
                 status = nil
                 selectedIndex = nil
             }
@@ -158,9 +171,9 @@ final class ViewModel: ObservableObject {
             do {
                 env = try env.reloading()
                 refresh()
-                status = MacStrings.setTransparency(Int(v))
+                status = "set transparency to \(v)"
             } catch {
-                status = MacStrings.error(error)
+                status = "error: \(error)"
             }
             DistributedNotificationCenter.default().post(name: .tdoReloadConfig, object: nil)
             command = ""
@@ -173,9 +186,9 @@ final class ViewModel: ObservableObject {
             do {
                 env = try env.reloading()
                 refresh()
-                status = on ? MacStrings.statusPinOn : MacStrings.statusPinOff
+                status = on ? "pin on" : "pin off"
             } catch {
-                status = MacStrings.error(error)
+                status = "error: \(error)"
             }
             DistributedNotificationCenter.default().post(name: .tdoReloadConfig, object: nil)
             command = ""
@@ -186,18 +199,20 @@ final class ViewModel: ObservableObject {
         let (out, mutated, _) = engine.execute(cmd, env: env)
         status = out.first
         if mutated { refresh(); command = "" }
-    }
+        }
 
     func undoLast() {
+        if checkConfig() { refresh() }
         let (lines, mutated, _) = engine.execute(.undo, env: env)
         if let first = lines.first { status = first }
         if mutated { refresh() }
     }
 
-    func ageLabel(_ t: OpenTask) -> String { age.label(createdAt: t.createdAt) }
+    func ageLabel(_ t: OpenTask) -> String { age.label(createdAt: t.createdAt, now: now) }
 
     // Keyboard selection helpers
     func moveSelection(by delta: Int) {
+        if checkConfig() { refresh() }
         guard !tasks.isEmpty else {
             selectedIndex = nil
             return
@@ -208,6 +223,7 @@ final class ViewModel: ObservableObject {
     }
 
     func selectTask(_ idx: Int, replaceCommand: Bool = true) {
+        if checkConfig() { refresh() }
         selectedIndex = idx
         let t = tasks[idx]
         status = "[\(t.uid)] \(t.text) · \(countInfo(t.text))"
@@ -230,6 +246,37 @@ final class ViewModel: ObservableObject {
         if rest.count <= width { return "\(uid) \(rest)" }
         let trunc = rest.prefix(width - 1)
         return "\(uid) \(trunc)…"
+    }
+
+    private func scheduleTimer() {
+        timer?.invalidate()
+        let now = Date()
+        let needsSeconds = tasks.contains { t in
+            guard let created = iso.date(from: t.createdAt) else { return false }
+            return now.timeIntervalSince(created) < 60
+        }
+        let interval: TimeInterval = needsSeconds ? 1 : 60
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.now = Date()
+            if self.checkConfig() { self.refresh() }
+        }
+    }
+
+    @discardableResult
+    private func checkConfig() -> Bool {
+        do {
+            let newEnv = try env.reloading()
+            if newEnv.config != env.config ||
+                newEnv.activeURL != env.activeURL ||
+                newEnv.archiveURL != env.archiveURL {
+                env = newEnv
+                return true
+            }
+        } catch {
+            status = "error: \(error)"
+        }
+        return false
     }
 }
 
@@ -328,7 +375,7 @@ struct ContentView: View {
             return Text(line).foregroundColor(.green)
         }
         if line.hasPrefix("remove:") { return Text(line).foregroundColor(.red) }
-        if line.hasPrefix(MacStrings.errorPrefix) { return Text(line).foregroundColor(.red).bold() }
+        if line.hasPrefix("error:") { return Text(line).foregroundColor(.red).bold() }
         if line.hasPrefix("note:") { return Text(line).foregroundColor(.gray) }
         if line.contains(" @ ") && line.contains(" status: ") { return Text(line).foregroundColor(.gray) }
         if line.hasPrefix("["), let close = line.firstIndex(of: "]") {
@@ -349,10 +396,10 @@ struct ContentView: View {
                         .lineLimit(3)
                         .multilineTextAlignment(.leading)
                 } else if let lines = vm.lines {
-                    Text(MacStrings.results(lines.count))
+                    Text("\(lines.count) results")
                         .font(.system(size: 14, design: .monospaced))
                 } else {
-                    Text(MacStrings.openCount(vm.tasks.count))
+                    Text("\(vm.tasks.count) open")
                         .font(.system(size: 14, design: .monospaced))
                 }
                 Spacer()
@@ -416,7 +463,8 @@ struct ContentView: View {
             HStack(spacing: 8) {
                 CommandField(
                     text: $vm.command,
-                    placeholder: MacStrings.commandPlaceholder,
+                    placeholder:
+                        "Type a command or just text…  (e.g.  do buy coffee   |   ABC done   |   undo)",
                     focusOnAppear: true,
                     onSubmit: { vm.submit() },
                     onUp: {
