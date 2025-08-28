@@ -136,15 +136,48 @@ final class ViewModel: ObservableObject {
             NSApp.terminate(nil)
             return
         }
-        if case .config = cmd {
+        if case .configShow = cmd {
+            if let text = try? String(contentsOf: env.configURL, encoding: .utf8) {
+                lines = text.split(separator: "\n").map(String.init)
+                title = "tdo - config"
+                status = nil
+                selectedIndex = nil
+            }
+            command = ""
+            return
+        }
+        if case .configOpen = cmd {
             Config.openEditor(env.configURL)
+            command = ""
+            return
+        }
+        if case .configTransparency(let v) = cmd {
+            var cfg = env.config
+            cfg.transparency = v
+            try? cfg.save(to: env.configURL)
             do {
                 env = try env.reloading()
                 refresh()
-                status = "loaded config"
+                status = "set transparency to \(v)"
             } catch {
                 status = "error: \(error)"
             }
+            DistributedNotificationCenter.default().post(name: .tdoReloadConfig, object: nil)
+            command = ""
+            return
+        }
+        if case .configPin(let on) = cmd {
+            var cfg = env.config
+            cfg.pin = on
+            try? cfg.save(to: env.configURL)
+            do {
+                env = try env.reloading()
+                refresh()
+                status = on ? "pin on" : "pin off"
+            } catch {
+                status = "error: \(error)"
+            }
+            DistributedNotificationCenter.default().post(name: .tdoReloadConfig, object: nil)
             command = ""
             return
         }
@@ -206,10 +239,10 @@ struct CommandField: NSViewRepresentable {
     var placeholder: String
     var focusOnAppear: Bool = false
     var onSubmit: () -> Void
-    var onUp: () -> Void
-    var onDown: () -> Void
-    var onPageUp: () -> Void
-    var onPageDown: () -> Void
+    var onUp: () -> Bool
+    var onDown: () -> Bool
+    var onPageUp: () -> Bool
+    var onPageDown: () -> Bool
     var onEscape: () -> Void
 
     final class Coordinator: NSObject, NSTextFieldDelegate, NSControlTextEditingDelegate {
@@ -229,17 +262,13 @@ struct CommandField: NSViewRepresentable {
                 parent.onSubmit()
                 return true
             case #selector(NSResponder.moveUp(_:)):
-                parent.onUp()
-                return true
+                return parent.onUp()
             case #selector(NSResponder.moveDown(_:)):
-                parent.onDown()
-                return true
+                return parent.onDown()
             case #selector(NSResponder.pageUp(_:)):
-                parent.onPageUp()
-                return true
+                return parent.onPageUp()
             case #selector(NSResponder.pageDown(_:)):
-                parent.onPageDown()
-                return true
+                return parent.onPageDown()
             case #selector(NSResponder.cancelOperation(_:)):
                 parent.onEscape()
                 return true
@@ -391,10 +420,34 @@ struct ContentView: View {
                         "Type a command or just text…  (e.g.  do buy coffee   |   ABC done   |   undo)",
                     focusOnAppear: true,
                     onSubmit: { vm.submit() },
-                    onUp: { vm.moveSelection(by: -1) },
-                    onDown: { vm.moveSelection(by: +1) },
-                    onPageUp: { vm.moveSelection(by: -pageStep) },
-                    onPageDown: { vm.moveSelection(by: +pageStep) },
+                    onUp: {
+                        if vm.lines == nil {
+                            vm.moveSelection(by: -1)
+                            return true
+                        }
+                        return false
+                    },
+                    onDown: {
+                        if vm.lines == nil {
+                            vm.moveSelection(by: +1)
+                            return true
+                        }
+                        return false
+                    },
+                    onPageUp: {
+                        if vm.lines == nil {
+                            vm.moveSelection(by: -pageStep)
+                            return true
+                        }
+                        return false
+                    },
+                    onPageDown: {
+                        if vm.lines == nil {
+                            vm.moveSelection(by: +pageStep)
+                            return true
+                        }
+                        return false
+                    },
                     onEscape: {
                         if vm.lines != nil {
                             vm.refresh()

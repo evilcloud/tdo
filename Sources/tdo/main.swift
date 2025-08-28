@@ -6,6 +6,7 @@ extension Notification.Name {
     static let tdoPin = Notification.Name("tdoPin")
     static let tdoUnpin = Notification.Name("tdoUnpin")
     static let tdoExit = Notification.Name("tdoExit")
+    static let tdoReloadConfig = Notification.Name("tdoReloadConfig")
 }
 #endif
 
@@ -100,11 +101,33 @@ func runShell(env initialEnv: Env) -> Int32 {
                 DistributedNotificationCenter.default().post(name: .tdoExit, object: nil)
 #endif
                 break
-            case .config:
-                Config.openEditor(env.configURL)
-                if let newEnv = try? env.reloading() {
-                    env = newEnv
+            case .configShow:
+                if let text = try? String(contentsOf: env.configURL, encoding: .utf8) {
+                    renderer.printBlock(text.split(separator: "\n").map(String.init))
                 }
+                continue
+            case .configOpen:
+                Config.openEditor(env.configURL)
+                continue
+            case .configTransparency(let v):
+                var cfg = env.config
+                cfg.transparency = v
+                try? cfg.save(to: env.configURL)
+                if let newEnv = try? env.reloading() { env = newEnv }
+#if os(macOS)
+                DistributedNotificationCenter.default().post(name: .tdoReloadConfig, object: nil)
+#endif
+                renderer.printBlock(["set transparency to \(v)"])
+                continue
+            case .configPin(let on):
+                var cfg = env.config
+                cfg.pin = on
+                try? cfg.save(to: env.configURL)
+                if let newEnv = try? env.reloading() { env = newEnv }
+#if os(macOS)
+                DistributedNotificationCenter.default().post(name: .tdoReloadConfig, object: nil)
+#endif
+                renderer.printBlock(["default pin \(on ? "on" : "off")"])
                 continue
             default:
                 let (lines, mutated, _) = engine.execute(cmd, env: env)
@@ -171,8 +194,31 @@ func runEntry() -> Int32 {
             renderer.printBlock(["exit is only available on macOS"])
 #endif
             return ExitCode.ok.rawValue
-        case .config:
+        case .configShow:
+            if let text = try? String(contentsOf: env.configURL, encoding: .utf8) {
+                renderer.printBlock(text.split(separator: "\n").map(String.init))
+            }
+            return ExitCode.ok.rawValue
+        case .configOpen:
             Config.openEditor(env.configURL)
+            return ExitCode.ok.rawValue
+        case .configTransparency(let v):
+            var cfg = env.config
+            cfg.transparency = v
+            try? cfg.save(to: env.configURL)
+#if os(macOS)
+            DistributedNotificationCenter.default().post(name: .tdoReloadConfig, object: nil)
+#endif
+            renderer.printBlock(["set transparency to \(v)"])
+            return ExitCode.ok.rawValue
+        case .configPin(let on):
+            var cfg = env.config
+            cfg.pin = on
+            try? cfg.save(to: env.configURL)
+#if os(macOS)
+            DistributedNotificationCenter.default().post(name: .tdoReloadConfig, object: nil)
+#endif
+            renderer.printBlock(["default pin \(on ? "on" : "off")"])
             return ExitCode.ok.rawValue
 
         case .do_, .find, .foo, .act, .undo, .show:

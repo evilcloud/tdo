@@ -14,7 +14,10 @@ public enum Command {
     case pin
     case unpin
     case exit
-    case config
+    case configShow
+    case configOpen
+    case configTransparency(Int)
+    case configPin(Bool)
 }
 
 enum ParseError: Error, CustomStringConvertible {
@@ -43,7 +46,20 @@ public struct Parser {
         if first == "pin" { return .pin }
         if first == "unpin" { return .unpin }
         if first == "exit" { return .exit }
-        if first == "config" { return .config }
+        if first == "config" {
+            if argv.count == 1 { return .configShow }
+            let sub = argv[1].lowercased()
+            if sub == "open" { return .configOpen }
+            if sub == "transparency", argv.count >= 3, let v = Int(argv[2]) {
+                return .configTransparency(v)
+            }
+            if sub == "pin", argv.count >= 3 {
+                let val = argv[2].lowercased()
+                if val == "on" || val == "true" { return .configPin(true) }
+                if val == "off" || val == "false" { return .configPin(false) }
+            }
+            throw ParseError.unknownCommand("config")
+        }
 
         // action-first sugar
         if first == "done" || first == "remove" {

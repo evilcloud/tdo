@@ -9,17 +9,20 @@ extension Notification.Name {
     static let tdoPin = Notification.Name("tdoPin")
     static let tdoUnpin = Notification.Name("tdoUnpin")
     static let tdoExit = Notification.Name("tdoExit")
+    static let tdoReloadConfig = Notification.Name("tdoReloadConfig")
 }
 
 final class PinObserver: ObservableObject {
     @Published var isPinned: Bool
-    private let transparency: Double
+    private var transparency: Double
+    private let configURL: URL
 
     private var observers: [NSObjectProtocol] = []
 
-    init(config: Config) {
+    init(config: Config, configURL: URL) {
         self.isPinned = config.pin
         self.transparency = Double(config.transparency) / 100.0
+        self.configURL = configURL
         let center = DistributedNotificationCenter.default()
         observers.append(
             center.addObserver(forName: .tdoPin, object: nil, queue: .main) { [weak self] _ in
@@ -36,6 +39,16 @@ final class PinObserver: ObservableObject {
         observers.append(
             center.addObserver(forName: .tdoExit, object: nil, queue: .main) { _ in
                 NSApp.terminate(nil)
+            }
+        )
+        observers.append(
+            center.addObserver(forName: .tdoReloadConfig, object: nil, queue: .main) { [weak self] _ in
+                guard let self = self else { return }
+                if let cfg = try? Config.loadOrCreate(at: self.configURL) {
+                    self.isPinned = cfg.pin
+                    self.transparency = Double(cfg.transparency) / 100.0
+                    self.applyPin()
+                }
             }
         )
         DispatchQueue.main.async { self.applyPin() }
@@ -64,7 +77,7 @@ struct TDOMacApp: App {
     init() {
         let env = try! Env()
         self.env = env
-        _pinObserver = StateObject(wrappedValue: PinObserver(config: env.config))
+        _pinObserver = StateObject(wrappedValue: PinObserver(config: env.config, configURL: env.configURL))
         DispatchQueue.main.async {
             NSApp.setActivationPolicy(.regular)
             NSApp.activate(ignoringOtherApps: true)
