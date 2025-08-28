@@ -175,6 +175,7 @@ struct CommandField: NSViewRepresentable {
     var onDown: () -> Void
     var onPageUp: () -> Void
     var onPageDown: () -> Void
+    var onEscape: () -> Void
 
     final class Coordinator: NSObject, NSTextFieldDelegate, NSControlTextEditingDelegate {
         var parent: CommandField
@@ -203,6 +204,9 @@ struct CommandField: NSViewRepresentable {
                 return true
             case #selector(NSResponder.pageDown(_:)):
                 parent.onPageDown()
+                return true
+            case #selector(NSResponder.cancelOperation(_:)):
+                parent.onEscape()
                 return true
             default:
                 return false
@@ -323,7 +327,12 @@ struct ContentView: View {
                     onUp: { vm.moveSelection(by: -1) },
                     onDown: { vm.moveSelection(by: +1) },
                     onPageUp: { vm.moveSelection(by: -pageStep) },
-                    onPageDown: { vm.moveSelection(by: +pageStep) }
+                    onPageDown: { vm.moveSelection(by: +pageStep) },
+                    onEscape: {
+                        if vm.lines != nil {
+                            vm.refresh()
+                        }
+                    }
                 )
                 .frame(height: 28)
                 .padding(.vertical, 6)
