@@ -88,7 +88,7 @@ struct TDOMacApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("tdo") {
+        WindowGroup(MacStrings.appTitle) {
             ContentView(engine: Engine(), env: env)
                 .environmentObject(pinObserver)
                 .frame(
@@ -97,21 +97,21 @@ struct TDOMacApp: App {
         }
         .commands {
             CommandGroup(replacing: .appTermination) {
-                Button("Quit tdo") { NSApp.terminate(nil) }
+                Button(MacStrings.menuQuit) { NSApp.terminate(nil) }
                     .keyboardShortcut("q", modifiers: [.command])
             }
-            CommandMenu("tdo") {
-                Button("Undo Last") {
+            CommandMenu(MacStrings.menuTitle) {
+                Button(MacStrings.menuUndoLast) {
                     NotificationCenter.default.post(name: .tdoUndo, object: nil)
                 }.keyboardShortcut("z", modifiers: [.command, .shift])
-                Button("Refresh") {
+                Button(MacStrings.menuRefresh) {
                     NotificationCenter.default.post(name: .tdoRefresh, object: nil)
                 }.keyboardShortcut("r", modifiers: [.command])
-                Button("Focus Command") {
+                Button(MacStrings.menuFocusCommand) {
                     NotificationCenter.default.post(name: .tdoFocusCommand, object: nil)
                 }.keyboardShortcut("l", modifiers: [.command])
                 Divider()
-                Button(pinObserver.isPinned ? "Unpin Window" : "Pin Window") {
+                Button(pinObserver.isPinned ? MacStrings.menuUnpinWindow : MacStrings.menuPinWindow) {
                     pinObserver.isPinned.toggle()
                     pinObserver.applyPin()
                 }
