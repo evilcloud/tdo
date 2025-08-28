@@ -1,8 +1,15 @@
 import Foundation
 
-enum FileIOError: Error {
+enum FileIOError: Error, CustomStringConvertible {
     case atomicWriteFailed(String)
     case readFailed(String)
+
+    var description: String {
+        switch self {
+        case .atomicWriteFailed(let s), .readFailed(let s):
+            return s
+        }
+    }
 }
 
 struct FileIO {

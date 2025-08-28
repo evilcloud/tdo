@@ -1,7 +1,14 @@
 import Foundation
 
-enum UIDError: Error {
+enum UIDError: Error, CustomStringConvertible {
     case couldNotGenerate
+
+    var description: String {
+        switch self {
+        case .couldNotGenerate:
+            return CoreStrings.uidCouldNotGenerate()
+        }
+    }
 }
 
 struct UID {

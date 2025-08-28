@@ -85,6 +85,11 @@ public enum CoreStrings {
         "\(path) exists but is not a directory"
     }
 
+    // MARK: - UID errors
+    public static func uidCouldNotGenerate() -> String {
+        "could not generate UID"
+    }
+
     // MARK: - UID resolution notes (unprefixed)
     public static func uidNoOpenTaskMatches(_ raw: String) -> String {
         "no open task matches '\(raw)'"

@@ -51,9 +51,9 @@ public struct Engine {
                 return ([CoreStrings.noteConfigHandledExternally()], false, .ok)
             }
         } catch let e as FileIOError {
-            return ([CoreStrings.error("\(e)")], false, .ioError)
+            return ([CoreStrings.error(e.description)], false, .ioError)
         } catch let e as UIDError {
-            return ([CoreStrings.error("\(e)")], false, .unexpected)
+            return ([CoreStrings.error(e.description)], false, .unexpected)
         } catch let e as ParseError {
             return ([CoreStrings.error(e.description)], false, .userError)
         } catch {
