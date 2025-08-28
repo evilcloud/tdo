@@ -54,6 +54,12 @@ func runShell(env initialEnv: Env) -> Int32 {
     let engine = Engine()
     let renderer = makeRenderer()
 
+    if let tasks = try? engine.openTasks(env: env) {
+        renderer.printBlock(renderer.renderOpenList(tasks))
+    } else {
+        renderer.printBlock(["error: could not load tasks"])
+    }
+
     while true {
         fputs("> ", stdout)
         fflush(stdout)
@@ -149,7 +155,7 @@ func runEntry() -> Int32 {
     args.removeFirst()
 
     let (paths, restRaw) = splitGlobalFlags(args)
-    let rest = restRaw.isEmpty ? ["shell"] : restRaw
+    let rest = restRaw.isEmpty ? ["list"] : restRaw
 
     let env: Env
     do { env = try Env(activePath: paths.0, archivePath: paths.1) } catch {
